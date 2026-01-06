@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id    String  @id @default(uuid())
+  sub   String  @unique // Cognito sub
+  email String? @unique
+  name  String?
+
+  // Alarm / notification settings
+  alarmsEnabled Boolean @default(true)
+  alarmConfig   Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  pets Pet[]
+}
+
+enum AdoptionSource {
+  shelter
+  agency
+  private
+  rescue
+  other
+}
+
+enum Weekday {
+  mon
+  tue
+  wed
+  thu
+  fri
+  sat
+  sun
+}
+
+enum Gender {
+  male
+  female
+}
+
+enum FoodType {
+  dry
+  wet
+  mixed
+  prescription
+}
+
+enum WaterSource {
+  fountain
+  bowl
+  mixed
+}
+
+enum ActivityLevel {
+  low
+  medium
+  high
+}
+
+enum LivingEnvironment {
+  indoor
+  outdoor
+  both
+}
+
+enum WaterIntakeTendency {
+  low
+  normal
+  high
+  unknown
+}
+
+enum NotificationPreference {
+  all
+  important
+  none
+}
+
+enum MedicationSelectionSource {
+  recommended
+  search
+}
+
+model Pet {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  name               String
+  adoptionPath       String
+  adoptionSource     AdoptionSource?
+  adoptionAgencyCode String?
+  agencyCode         String?
+
+  dataSharing      Json?
+  careShareStartAt Int?
+  careShareEndAt   Int?
+
+  birthDate       String?
+  estimatedAge    Int?
+  unknownBirthday Boolean
+  gender          Gender
+  neutered        Boolean
+  breed           String
+  weight          Float
+  bcs             Float?
+
+  foodType               FoodType
+  waterSource            WaterSource
+  surveyFrequencyPerWeek Int?
+  surveyDays             Weekday[]
+  activityLevel          ActivityLevel?
+  livingEnvironment      LivingEnvironment?
+  multiCat               Boolean?
+  catCount               Int?
+  mealsPerDay            Int?
+  waterIntakeTendency    WaterIntakeTendency?
+
+  medicalHistory         Json?
+  medications            String?
+  medicationText         String?
+  medicationsSelected    Json? // MedicationSelection[]
+  medicationOtherText    String?
+  notes                  String?
+  vetInfo                String?
+  notificationPreference NotificationPreference?
+  profilePhoto           String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}

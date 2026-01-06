@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    /* 기본 빌드 설정 */
+    "target": "ES2023",                                  /* Node.js 22 환경에 최적화된 타겟 */
+    "module": "NodeNext",                                /* moduleResolution: NodeNext와 일치 필요 */
+    "moduleResolution": "NodeNext",                      /* Node.js의 최신 모듈 해석 방식 반영 */
+    "lib": ["ES2023"],                                   /* 해당 버전의 표준 라이브러리 포함 */
+    
+    /* NestJS 필수 설정 (삭제 금지) */
+    "experimentalDecorators": true,                      /* 데코레이터(@) 사용을 위함 */
+    "emitDecoratorMetadata": true,                       /* 의존성 주입(DI)을 위한 메타데이터 생성 */
+    
+    /* 엄격한 타입 체크 (Strict Mode) */
+    "strict": true,                                      /* 모든 엄격한 타입 체크 활성화 */
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": false,               /* NestJS DI 특성상 false 권장 (또는 ! 사용) */
+    
+    /* 모듈 및 상호운용성 */
+    "esModuleInterop": true,                             /* CommonJS 모듈을 ESM처럼 가져오기 위함 */
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,                                /* 라이브러리 선언 파일의 타입 체크 생략 (속도 향상) */
+    
+    /* 출력 및 디버깅 */
+    "outDir": "./dist",
+    "sourceMap": true,
+    "removeComments": true,
+    "incremental": true,                                 /* 변경된 부분만 컴파일하여 속도 향상 */
+    
+    /* 기타 설정 */
+    "baseUrl": "./",
+    "ignoreDeprecations": "5.0",                         /* TS 버전 업에 따른 지원 중단 경고 무시 */
+    "paths": {
+      "@/*": ["src/*"]                                   /* 절대 경로 별칭 설정 (선택 사항) */
+    }
+  },
+  "include": ["src/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
