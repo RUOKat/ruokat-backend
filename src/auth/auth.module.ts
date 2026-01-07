@@ -7,7 +7,7 @@ import { CognitoService } from './cognito.service';
 @Module({
   controllers: [AuthController],
   providers: [AuthService, CognitoAuthGuard, CognitoService],
-  exports: [CognitoAuthGuard],
+  exports: [CognitoAuthGuard, CognitoService],
 })
 export class AuthModule {}
 
