@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
+import { ExpoService } from '@/expo/expo.service';
 
 export interface AlarmSettings {
   enabled: boolean;
@@ -10,7 +16,29 @@ export interface AlarmSettings {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly expoService: ExpoService,
+  ) {}
+
+  async updatePushToken(sub: string, dto: UpdatePushTokenDto) {
+    if (!this.expoService.isExpoPushToken(dto.pushToken)) {
+      throw new BadRequestException('Invalid Expo push token');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { sub },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        pushToken: dto.pushToken,
+        deviceInfo: dto.deviceInfo,
+      },
+    });
+  }
 
   async getMe(sub: string) {
     const user = await this.prisma.user.findUnique({

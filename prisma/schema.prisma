@@ -12,6 +12,10 @@ model User {
   email String? @unique
   name  String?
 
+  // Push notification settings
+  pushToken  String?
+  deviceInfo Json?
+
   // Alarm / notification settings
   alarmsEnabled Boolean @default(true)
   alarmConfig   Json?

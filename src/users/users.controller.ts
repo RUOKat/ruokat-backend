@@ -15,6 +15,7 @@ import {
 } from '../common/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UpdateAlarmSettingsDto } from './dto/update-alarm-settings.dto';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 
 @ApiBearerAuth()
 @ApiTags('users')
@@ -57,6 +58,15 @@ export class UsersController {
   @ApiOperation({ summary: `Disable current user's alarms` })
   async disableMyAlarms(@CurrentUser() user: RequestUser) {
     return this.usersService.disableAlarms(user.sub);
+  }
+
+  @Put('me/push-token')
+  @ApiOperation({ summary: `Update current user's push token` })
+  async updateMyPushToken(
+    @CurrentUser() user: RequestUser,
+    @Body() body: UpdatePushTokenDto,
+  ) {
+    return this.usersService.updatePushToken(user.sub, body);
   }
 }
 

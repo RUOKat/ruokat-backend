@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PetsModule } from './pets/pets.module';
 import { AppController } from './app.controller';
+import { AwsModule } from './aws/aws.module';
+import { ExpoModule } from './expo/expo.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { AppController } from './app.controller';
     AuthModule,
     UsersModule,
     PetsModule,
+    AwsModule,
+    ExpoModule,
   ],
   controllers: [AppController],
 })
