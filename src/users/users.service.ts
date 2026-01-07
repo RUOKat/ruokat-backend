@@ -93,6 +93,10 @@ export class UsersService {
       config: updated.alarmConfig,
     };
   }
+
+  async getAllUsers() {
+    return this.prisma.user.findMany();
+  }
 }
 
 
