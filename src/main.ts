@@ -8,25 +8,30 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'staging') {
+    app.enableCors();
+  }
+
   app.setGlobalPrefix('api');
 
   const config = new DocumentBuilder()
-  .setTitle('Ruokat API')
-  .setDescription('Ruokat backend API documentation')
-  .setVersion('1.0')
-  .addBearerAuth(
-    {
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-      description: 'AWS Cognito Access Token',
-    },
-    'access-token',
-  )
-  .build();
+    .setTitle('Ruokat API')
+    .setDescription('Ruokat backend API documentation')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'AWS Cognito Access Token',
+      },
+      'access-token',
+    )
+    .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('swagger', app, document);
-  
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
