@@ -5,6 +5,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PetsModule } from './pets/pets.module';
 import { AppController } from './app.controller';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { UploadsModule } from './uploads/uploads.module';
+
 import { AwsModule } from './aws/aws.module';
 import { ExpoModule } from './expo/expo.module';
 
@@ -18,6 +21,8 @@ import { ExpoModule } from './expo/expo.module';
     AuthModule,
     UsersModule,
     PetsModule,
+    DashboardModule,
+    UploadsModule,
     AwsModule,
     ExpoModule,
   ],
