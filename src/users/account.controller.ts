@@ -1,4 +1,4 @@
-// src/users/account.controller.ts (신규 생성)
+// src/users/account.controller.ts
 
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -21,6 +21,7 @@ export class AccountController {
     @CurrentUser() user: RequestUser,
     @Body() dto: ChangePasswordDto,
   ) {
+    // UsersService의 changePassword 메서드 호출
     return this.usersService.changePassword(user.sub, dto);
   }
 
@@ -28,6 +29,7 @@ export class AccountController {
   @ApiOperation({ summary: '계정 삭제' })
   @HttpCode(HttpStatus.OK)
   async deleteAccount(@CurrentUser() user: RequestUser) {
+    // UsersService의 deleteAccount 메서드 호출
     return this.usersService.deleteAccount(user.sub);
   }
 }
