@@ -1,3 +1,4 @@
+# Do not use this Dockerfile in production environments without proper modifications and security measures.
 # 1단계: Build 스테이지
 FROM node:22-alpine AS builder
 
@@ -10,6 +11,7 @@ COPY prisma ./prisma/
 # 의존성 설치 (Prisma 클라이언트 생성 포함)
 RUN npm ci
 RUN npx prisma generate
+RUN npx prisma migrate deploy
 
 # 전체 소스 복사 및 빌드
 COPY . .

@@ -1,9 +1,14 @@
-// src/users/users.service.ts
-
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Logger
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdatePushTokenDto } from './dto/update-push-token.dto';
+import { ExpoService } from '@/expo/expo.service';
 
 export interface AlarmSettings {
   enabled: boolean;
@@ -13,10 +18,31 @@ export interface AlarmSettings {
 
 @Injectable()
 export class UsersService {
-  // [Logger] 시스템 로그 관리를 위해 Logger 인스턴스 생성
   private readonly logger = new Logger(UsersService.name);
+  
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly expoService: ExpoService,
+  ) {}
 
-  constructor(private readonly prisma: PrismaService) {}
+  async updatePushToken(sub: string, dto: UpdatePushTokenDto) {
+    if (!this.expoService.isExpoPushToken(dto.pushToken)) {
+      throw new BadRequestException('Invalid Expo push token');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { sub },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        pushToken: dto.pushToken,
+        deviceInfo: dto.deviceInfo,
+      },
+    });
+  }
 
   // [수정] 내 정보 조회 (DB 데이터 + 프론트엔드용 가짜 데이터 병합)
   async getMe(sub: string) {

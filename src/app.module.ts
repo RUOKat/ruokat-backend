@@ -8,6 +8,8 @@ import { AppController } from './app.controller';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UploadsModule } from './uploads/uploads.module';
 
+import { AwsModule } from './aws/aws.module';
+import { ExpoModule } from './expo/expo.module';
 
 @Module({
   imports: [
@@ -21,7 +23,8 @@ import { UploadsModule } from './uploads/uploads.module';
     PetsModule,
     DashboardModule,
     UploadsModule,
-  
+    AwsModule,
+    ExpoModule,
   ],
   controllers: [AppController],
 })
