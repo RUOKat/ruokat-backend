@@ -7,24 +7,37 @@ datasource db {
 }
 
 model User {
-  id    String  @id @default(uuid())
-  sub   String  @unique // Cognito sub
-  email String? @unique
-  name  String?
+// [1. 식별자 및 인증]
+  id            String    @id @default(uuid())
+  sub           String    @unique // Cognito User ID (필수)
+  email         String?   @unique
+  
+  // [2. 프로필 정보 (UserProfileEditPage 대응)]
+  name          String?   // 이름
+  nickname      String?   @db.VarChar(30) // 닉네임 (필요 시 사용, UI엔 아직 없지만 있으면 좋음)
+  address       String?   // 🏠 주소 (UI에 있어서 추가함!)
+  phoneNumber   String?   // 연락처
+  profilePhoto  String?   // 프로필 사진 URL
 
-  // Push notification settings
-  pushToken  String?
-  deviceInfo Json?
+  // [3. 설정 (SettingsPage 대응)]
+  // 전체 알림 스위치 (Switch onCheckedChange)
+  alarmsEnabled Boolean   @default(true) 
+  
+  // 상세 설정 (Select value={alertPriority})
+  // 저장 예시: { "priority": "important", "marketing": false }
+  alarmConfig   Json?     
 
-  // Alarm / notification settings
-  alarmsEnabled Boolean @default(true)
-  alarmConfig   Json?
+  // 기기 토큰 (푸시 알림용)
+  pushToken     String?
+  deviceInfo    Json?
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  // [4. 시스템 관리]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? // 계정 삭제(handleDelete) 시 사용 (Soft Delete)
 
-  pets Pet[]
+  // [5. 관계]
+  pets          Pet[]
 }
 
 enum AdoptionSource {

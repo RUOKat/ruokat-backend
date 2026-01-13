@@ -1,17 +1,15 @@
-// src/users/dto/change-password.dto.ts
-
+import { IsString, IsNotEmpty, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength } from 'class-validator';
-
 
 export class ChangePasswordDto {
-  @ApiProperty({ description: '현재 비밀번호', example: 'password123' })
+  @ApiProperty({ example: 'current1234!' })
   @IsString()
-  @MinLength(6)
-  currentPassword: string;
+  @IsNotEmpty()
+  currentPassword: string; // 프론트엔드와 변수명 일치 필수
 
-  @ApiProperty({ description: '새로운 비밀번호', example: 'newpassword123' })
+  @ApiProperty({ example: 'new1234!' })
   @IsString()
-  @MinLength(6)
-  newPassword: string;
+  @IsNotEmpty()
+  @MinLength(8)
+  newPassword: string; // 프론트엔드와 변수명 일치 필수
 }
