@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user.dto';
 import { CognitoAuthGuard } from '../auth/cognito-auth.guard';
 import {
   CurrentUser,
@@ -17,7 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UpdateAlarmSettingsDto } from './dto/update-alarm-settings.dto';
 import { UpdatePushTokenDto } from './dto/update-push-token.dto';
 
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @ApiTags('users')
 @UseGuards(CognitoAuthGuard)
 @Controller('users')
@@ -34,7 +34,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update current user information' })
   async updateMe(
     @CurrentUser() user: RequestUser,
-    @Body() dto: UpdateUserDto,
+    @Body() dto: UpdateUserProfileDto,
   ) {
     return this.usersService.updateMe(user.sub, dto);
   }
