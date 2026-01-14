@@ -3,6 +3,8 @@ import { AwsService } from './aws.service';
 import {
   PutItemCommand,
   GetItemCommand,
+  QueryCommand, // 👈 추가
+  QueryCommandInput, // 👈 추가
   AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 
@@ -31,5 +33,12 @@ export class DynamoDBService {
     });
     const result = await this.awsService.dynamodb.send(command);
     return result.Item;
+  }
+
+  // 🆕 [추가] 대시보드용 Query 메서드
+  async query(params: QueryCommandInput) {
+    const command = new QueryCommand(params);
+    const result = await this.awsService.dynamodb.send(command);
+    return result.Items;
   }
 }

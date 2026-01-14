@@ -1,6 +1,10 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+// ❌ 기존 직접 연결 코드 삭제
+// import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+
+// ✅ [변경] 공용 Service 사용
+import { DynamoDBService } from '../aws/dynamodb.service';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import {
   DashboardSummaryDto,
@@ -11,43 +15,36 @@ import {
 
 @Injectable()
 export class DashboardService {
-  private readonly client: DynamoDBClient;
   private readonly tableName: string;
 
-  constructor(private configService: ConfigService) {
-    this.client = new DynamoDBClient({
-      region: this.configService.get('AWS_DYNAMODB_REGION'),
-      credentials: {
-        accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID'),
-        secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY'),
-      },
-    });
-    // TypeScript 에러 방지를 위해 getOrThrow 사용
+  constructor(
+    private configService: ConfigService,
+    private dynamoDBService: DynamoDBService, // 👈 [주입] 공용 서비스 사용
+  ) {
+    // ❌ 생성자 내부의 복잡한 Client 연결 로직 삭제
     this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
   }
 
   // 1. 대시보드 메인 요약 (Real Data)
   async getSummary(catId: string): Promise<DashboardSummaryDto> {
     try {
-      // A. DynamoDB에서 최근 7개 데이터 조회 (차트용)
-      const command = new QueryCommand({
+      // A. DynamoDB 조회 (리팩토링된 공용 서비스의 query 사용)
+      const items = await this.dynamoDBService.query({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: { ':pk': { S: catId } },
+        ExpressionAttributeValues: { ':pk': { S: catId } }, // Low-level 포맷 유지
         ScanIndexForward: false, // 내림차순 (최신순)
         Limit: 7, // 최근 7개 기록
       });
 
-      const { Items } = await this.client.send(command);
-
       // 데이터가 아예 없을 경우 (신규 고양이)
-      if (!Items || Items.length === 0) {
+      if (!items || items.length === 0) {
         return this.getEmptyState(catId);
       }
 
       // B. 데이터 변환 (Dynamo JSON -> JS Object)
       // 최신순으로 정렬되어 있으므로 [0]이 가장 최신
-      const history = Items.map((item) => unmarshall(item));
+      const history = items.map((item) => unmarshall(item));
       const latestData = history[0]; // 가장 최신 상태
 
       // C. 리스크 분석 실행
@@ -84,7 +81,7 @@ export class DashboardService {
     }
   }
 
-  // 2. 주간 리포트 (아직 데이터가 부족하므로 Mock 유지)
+  // 2. 주간 리포트
   async getReports(catId: string): Promise<WeeklyReportDto[]> {
     return [
       {
@@ -98,10 +95,9 @@ export class DashboardService {
   }
 
   // ---------------------------------------------------------
-  // 🛠️ Private Helper Methods
+  // 🛠️ Private Helper Methods (기존 로직 유지)
   // ---------------------------------------------------------
 
-  // 빈 상태 리턴
   private getEmptyState(catId: string): DashboardSummaryDto {
     return {
       catId,
@@ -113,10 +109,9 @@ export class DashboardService {
     };
   }
 
-  // 🛠️ [수정됨] 텍스트 데이터를 차트용 숫자로 변환 (대소문자 무시)
   private mapTextToScore(value: string): number {
     if (!value) return 0;
-    const upperValue = value.toUpperCase(); // low -> LOW 변환
+    const upperValue = value.toUpperCase(); 
 
     switch (upperValue) {
         case 'HIGH': return 3;
@@ -126,7 +121,6 @@ export class DashboardService {
     }
   }
 
-  // 메트릭 객체 생성기
   private buildMetric(
     id: string, 
     label: string, 
@@ -155,7 +149,6 @@ export class DashboardService {
     };
   }
 
-  // 🛠️ [수정됨] 리스크 분석 로직 (대소문자 무시 & 안전한 접근)
   private analyzeRisk(data: any) {
     let score = 100;
     const insights: string[] = [];
@@ -164,23 +157,19 @@ export class DashboardService {
     const lifestyle = data.lifestyle || {};
     const medicalHistory = data.medical_history || [];
 
-    // 데이터를 대문자로 변환해서 비교 (안전장치)
     const waterIntake = lifestyle.water_intake?.toUpperCase() || '';
     const activityLevel = lifestyle.activity_level?.toUpperCase() || '';
 
-    // [규칙 1] 음수량 체크
     if (waterIntake === 'LOW') {
         score -= 20;
         insights.push('최근 음수량이 부족합니다. 💧');
     }
 
-    // [규칙 2] 활동량 체크
     if (activityLevel === 'LOW') {
         score -= 10;
         insights.push('활동량이 떨어졌습니다. 낚싯대로 놀아주세요! 🎣');
     }
 
-    // [규칙 3] 신장 질환 + 음수량 부족 = 위험
     const hasKidneyIssue = medicalHistory.some((h: any) => 
         h.category?.toUpperCase().includes('KIDNEY')
     );
@@ -196,7 +185,6 @@ export class DashboardService {
         }
     } 
 
-    // 점수에 따른 레벨 조정
     if (level !== 'danger') {
         if (score < 70) level = 'warning';
         else level = 'safe';
