@@ -21,7 +21,7 @@ import {
 } from '../common/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @ApiTags('pets')
 @UseGuards(CognitoAuthGuard)
 @Controller('pets')
@@ -29,7 +29,10 @@ export class PetsController {
   constructor(private readonly petsService: PetsService) {}
 
   @Post()
-  @ApiOperation({ summary: `Create a pet's profile` })
+  @ApiOperation({ 
+    summary: `Create a pet's profile`, 
+    description: '고양이 프로필을 생성합니다. (PostgreSQL 저장 + AI 분석용 DynamoDB 동기화)' 
+  })
   async create(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateCatProfileDto,
@@ -44,7 +47,10 @@ export class PetsController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: `Update a pet's profile` })
+  @ApiOperation({ 
+    summary: `Update a pet's profile`,
+    description: '고양이 프로필을 수정합니다. 수정 이력은 AI 분석을 위해 DynamoDB에 기록됩니다.'
+  })
   async update(
     @CurrentUser() user: RequestUser,
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -62,5 +68,3 @@ export class PetsController {
     return this.petsService.softDelete(user.id ?? user.sub, id);
   }
 }
-
-

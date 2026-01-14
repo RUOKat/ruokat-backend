@@ -1,79 +1,186 @@
-// src/dashboard/dashboard.service.ts
-
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DynamoDBService } from '../aws/dynamodb.service';
+import { unmarshall } from '@aws-sdk/util-dynamodb';
 import {
   DashboardSummaryDto,
   MetricDto,
   WeeklyReportDto,
+  ChartPointDto,
 } from './dto/dashboard-response.dto';
 
 @Injectable()
 export class DashboardService {
+  private readonly tableName: string;
+
+  constructor(
+    private configService: ConfigService,
+    private dynamoDBService: DynamoDBService,
+  ) {
+    this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
+  }
+
   async getSummary(catId: string): Promise<DashboardSummaryDto> {
-    // 실제 DB 조회 로직이 들어갈 자리 (지금은 Mock Data 리턴)
-    return {
-      catId,
-      status: 'safe', // safe, warning, danger
-      updatedAt: new Date(),
-      coverage: {
-        totalDays: 7,
-        daysWithData: 5,
-      },
-      metrics: [
-        this.createMockMetric('appetite', '식욕', 12.5),
-        this.createMockMetric('water', '음수', -5.2),
-        this.createMockMetric('litter', '배변', 0.0),
-        this.createMockMetric('activity', '활동량', 20.1),
-      ],
-      insights: [
-        '활동량이 지난주보다 크게 늘었어요! 🏃',
-        '음수량이 조금 부족해요. 습식 사료를 고려해보세요. 💧',
-      ],
-      // [선택] 위험 상태가 감지되었을 때만 포함
-      riskStatus: {
-        level: 'warning',
-        description: '최근 2일간 음수량이 권장량 미만입니다.',
-      },
-    };
+    try {
+      const items = await this.dynamoDBService.query({
+        TableName: this.tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': { S: catId } },
+        ScanIndexForward: false,
+        Limit: 7,
+      });
+
+      if (!items || items.length === 0) {
+        return this.getEmptyState(catId);
+      }
+
+      const history = items.map((item) => unmarshall(item));
+      const latestData = history[0];
+
+      const riskAnalysis = this.analyzeRisk(latestData);
+      const chartHistory = [...history].reverse(); 
+
+      return {
+        catId,
+        status: riskAnalysis.level,
+        updatedAt: new Date(latestData.SK),
+        coverage: {
+          totalDays: 7,
+          daysWithData: history.length,
+        },
+        metrics: [
+          this.buildMetric('weight', '체중 (kg)', chartHistory, (d) => d.basic_profile?.weight_kg),
+          this.buildMetric('meal', '식사량 (회)', chartHistory, (d) => d.lifestyle?.daily_meal_count),
+          this.buildMetric('water', '음수량', chartHistory, (d) => this.mapTextToScore(d.lifestyle?.water_intake)),
+          this.buildMetric('activity', '활동량', chartHistory, (d) => this.mapTextToScore(d.lifestyle?.activity_level)),
+        ],
+        insights: riskAnalysis.insights,
+        riskStatus: riskAnalysis.level !== 'safe' ? {
+            level: riskAnalysis.level,
+            description: riskAnalysis.message
+        } : undefined
+      };
+
+    } catch (error) {
+      console.error('Dashboard Summary Error:', error);
+      throw new InternalServerErrorException('대시보드 데이터를 불러오지 못했습니다.');
+    }
   }
 
   async getReports(catId: string): Promise<WeeklyReportDto[]> {
     return [
       {
         id: 'rep_01',
-        rangeLabel: '1월 1주차',
-        summary: '전반적으로 건강했지만, 주말에 활동량이 조금 줄었어요.',
-        score: 92,
-        status: 'safe',
-      },
-      {
-        id: 'rep_02',
-        rangeLabel: '12월 4주차',
-        summary: '완벽한 한 주였습니다! 👏',
-        score: 100,
+        rangeLabel: '최근 분석 리포트',
+        summary: '데이터가 쌓이고 있습니다. 7일 후 정확한 리포트가 생성됩니다.',
+        score: 85,
         status: 'safe',
       },
     ];
   }
 
-  // [수정됨] Recharts 형식({ x, y })에 맞춰 Mock 데이터 생성
-  private createMockMetric(
-    id: string,
-    label: string,
-    changePercent: number,
+  private getEmptyState(catId: string): DashboardSummaryDto {
+    return {
+      catId,
+      status: 'safe',
+      updatedAt: new Date(),
+      coverage: { totalDays: 7, daysWithData: 0 },
+      metrics: [],
+      insights: ['아직 기록이 없습니다. 고양이 프로필을 등록해주세요!'],
+    };
+  }
+
+  private mapTextToScore(value: string): number {
+    if (!value) return 0;
+    const upperValue = value.toUpperCase(); 
+
+    switch (upperValue) {
+        case 'HIGH': return 3;
+        case 'NORMAL': return 2;
+        case 'LOW': return 1;
+        default: return 0;
+    }
+  }
+
+  private buildMetric(
+    id: string, 
+    label: string, 
+    history: any[], 
+    valueExtractor: (data: any) => number
   ): MetricDto {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const chartData: ChartPointDto[] = history.map(item => {
+        const date = new Date(item.SK);
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' }); 
+        return {
+            x: dayName,
+            y: Number(valueExtractor(item)) || 0
+        };
+    });
+
+    const current = chartData[chartData.length - 1]?.y || 0;
+    const prev = chartData[chartData.length - 2]?.y || 0;
+    const changePercent = prev === 0 ? 0 : ((current - prev) / prev) * 100;
 
     return {
-      id,
-      label,
-      changePercent,
-      trendLabel: changePercent > 0 ? '늘었어요' : '줄었어요',
-      // 차트 데이터 생성 로직 수정 (day -> x, value -> y)
-      chartData: Array.from({ length: 7 }, (_, i) => ({
-        x: days[i], // 요일 (String)
-        y: Math.floor(Math.random() * 100) / 10, // 랜덤 값 (Number)
-      })),
+        id,
+        label,
+        changePercent: parseFloat(changePercent.toFixed(1)),
+        trendLabel: changePercent > 0 ? '늘었어요' : changePercent < 0 ? '줄었어요' : '변화 없음',
+        chartData
+    };
+  }
+
+  private analyzeRisk(data: any) {
+    let score = 100;
+    const insights: string[] = [];
+    let level = 'safe'; 
+
+    const lifestyle = data.lifestyle || {};
+    const medicalHistory = data.medical_history || [];
+
+    const waterIntake = lifestyle.water_intake?.toUpperCase() || '';
+    const activityLevel = lifestyle.activity_level?.toUpperCase() || '';
+
+    // Check Water Intake
+    if (waterIntake === 'LOW') {
+        score -= 20;
+        insights.push('최근 음수량이 부족합니다. 💧');
+    }
+
+    // Check Activity Level
+    if (activityLevel === 'LOW') {
+        score -= 10;
+        insights.push('활동량이 떨어졌습니다. 낚싯대로 놀아주세요! 🎣');
+    }
+
+    // Check Kidney Issues + Water Intake
+    const hasKidneyIssue = medicalHistory.some((h: any) => 
+        h.category?.toUpperCase().includes('KIDNEY')
+    );
+    
+    if (hasKidneyIssue) {
+        score -= 20;
+        insights.push('신장 관련 병력이 감지되었습니다.');
+        
+        if (waterIntake === 'LOW') {
+            score -= 30;
+            level = 'danger';
+            insights.unshift('🚨 신장 질환 위험! 음수량 관리가 시급합니다.');
+        }
+    } 
+
+    if (level !== 'danger') {
+        if (score < 70) level = 'warning';
+        else level = 'safe';
+    }
+
+    if (insights.length === 0) insights.push('아주 건강하게 관리되고 있어요! 👍');
+
+    return { 
+        score, 
+        level, 
+        message: insights[0], 
+        insights 
     };
   }
 }

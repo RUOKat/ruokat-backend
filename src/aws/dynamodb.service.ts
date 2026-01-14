@@ -3,6 +3,8 @@ import { AwsService } from './aws.service';
 import {
   PutItemCommand,
   GetItemCommand,
+  QueryCommand,
+  QueryCommandInput,
   AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 
@@ -31,5 +33,11 @@ export class DynamoDBService {
     });
     const result = await this.awsService.dynamodb.send(command);
     return result.Item;
+  }
+
+  async query(params: QueryCommandInput) {
+    const command = new QueryCommand(params);
+    const result = await this.awsService.dynamodb.send(command);
+    return result.Items;
   }
 }

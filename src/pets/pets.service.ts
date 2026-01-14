@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { DynamoDBService } from '../aws/dynamodb.service';
+import { marshall } from '@aws-sdk/util-dynamodb';
 import {
   CreateCatProfileDto,
   UpdateCatProfileDto,
@@ -7,10 +10,18 @@ import {
 
 @Injectable()
 export class PetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly tableName: string;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly dynamoDBService: DynamoDBService,
+  ) {
+    this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
+  }
 
   async create(userId: string, dto: CreateCatProfileDto) {
-    return this.prisma.pet.create({
+    const pet = await this.prisma.pet.create({
       data: {
         userId,
         name: dto.name,
@@ -51,17 +62,16 @@ export class PetsService {
         profilePhoto: dto.profilePhoto,
       },
     });
+
+    await this.saveHistoryToDynamoDB(pet.id, dto, 'PROFILE_CREATED');
+
+    return pet;
   }
 
   async findAllByUser(userId: string) {
     return this.prisma.pet.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      where: { userId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -69,11 +79,9 @@ export class PetsService {
     const pet = await this.prisma.pet.findFirst({
       where: { id: petId, userId, deletedAt: null },
     });
-    if (!pet) {
-      throw new NotFoundException('Pet not found');
-    }
+    if (!pet) throw new NotFoundException('Pet not found');
 
-    return this.prisma.pet.update({
+    const updatedPet = await this.prisma.pet.update({
       where: { id: petId },
       data: {
         name: dto.name,
@@ -114,15 +122,17 @@ export class PetsService {
         profilePhoto: dto.profilePhoto,
       },
     });
+
+    await this.saveHistoryToDynamoDB(petId, dto, 'PROFILE_UPDATED');
+
+    return updatedPet;
   }
 
   async softDelete(userId: string, petId: string) {
     const pet = await this.prisma.pet.findFirst({
       where: { id: petId, userId, deletedAt: null },
     });
-    if (!pet) {
-      throw new NotFoundException('Pet not found');
-    }
+    if (!pet) throw new NotFoundException('Pet not found');
 
     await this.prisma.pet.update({
       where: { id: petId },
@@ -131,6 +141,37 @@ export class PetsService {
 
     return { deleted: true };
   }
+
+  private async saveHistoryToDynamoDB(petId: string, data: any, eventType: string) {
+    try {
+      const rawData = {
+        PK: petId,
+        SK: new Date().toISOString(),
+        basic_profile: {
+          name: data.name,
+          breed: data.breed,
+          gender: data.gender,
+          neutered: data.neutered,
+          weight_kg: data.weight,
+          birth: data.birthDate || data.estimatedAge,
+        },
+        lifestyle: {
+          food_type: data.foodType,
+          water_source: data.waterSource,
+          activity_level: data.activityLevel,
+          water_intake: data.waterIntakeTendency,
+        },
+        medical_history: data.medicalHistory,
+        notes: data.notes,
+        eventType: eventType,
+        createdAt: new Date().toISOString(),
+      };
+
+      const marshalledItem = marshall(rawData, { removeUndefinedValues: true });
+
+      await this.dynamoDBService.putItem(this.tableName, marshalledItem);
+    } catch (error) {
+      console.error(`[DynamoDB Error] Failed to save history for ${petId}:`, error);
+    }
+  }
 }
-
-
