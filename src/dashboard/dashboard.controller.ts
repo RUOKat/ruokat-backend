@@ -7,7 +7,7 @@ import { DashboardService } from './dashboard.service';
 import { DashboardSummaryDto, WeeklyReportDto } from './dto/dashboard-response.dto';
 
 @ApiTags('dashboard')
-@ApiBearerAuth() // Swagger에서 JWT 토큰 입력 기능 활성화
+@ApiBearerAuth('access-token') // Swagger에서 JWT 토큰 입력 기능 활성화
 @UseGuards(CognitoAuthGuard) // 컨트롤러 전체에 인증 가드 적용 (안전)
 @Controller('dashboard')
 export class DashboardController {
