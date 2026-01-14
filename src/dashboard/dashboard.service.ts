@@ -1,9 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// ❌ 기존 직접 연결 코드 삭제
-// import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
-
-// ✅ [변경] 공용 Service 사용
 import { DynamoDBService } from '../aws/dynamodb.service';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import {
@@ -19,44 +15,35 @@ export class DashboardService {
 
   constructor(
     private configService: ConfigService,
-    private dynamoDBService: DynamoDBService, // 👈 [주입] 공용 서비스 사용
+    private dynamoDBService: DynamoDBService,
   ) {
-    // ❌ 생성자 내부의 복잡한 Client 연결 로직 삭제
     this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
   }
 
-  // 1. 대시보드 메인 요약 (Real Data)
   async getSummary(catId: string): Promise<DashboardSummaryDto> {
     try {
-      // A. DynamoDB 조회 (리팩토링된 공용 서비스의 query 사용)
       const items = await this.dynamoDBService.query({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: { ':pk': { S: catId } }, // Low-level 포맷 유지
-        ScanIndexForward: false, // 내림차순 (최신순)
-        Limit: 7, // 최근 7개 기록
+        ExpressionAttributeValues: { ':pk': { S: catId } },
+        ScanIndexForward: false,
+        Limit: 7,
       });
 
-      // 데이터가 아예 없을 경우 (신규 고양이)
       if (!items || items.length === 0) {
         return this.getEmptyState(catId);
       }
 
-      // B. 데이터 변환 (Dynamo JSON -> JS Object)
-      // 최신순으로 정렬되어 있으므로 [0]이 가장 최신
       const history = items.map((item) => unmarshall(item));
-      const latestData = history[0]; // 가장 최신 상태
+      const latestData = history[0];
 
-      // C. 리스크 분석 실행
       const riskAnalysis = this.analyzeRisk(latestData);
-
-      // D. 차트 데이터 가공 (과거 -> 현재 순으로 뒤집기)
       const chartHistory = [...history].reverse(); 
 
       return {
         catId,
-        status: riskAnalysis.level, // safe, warning, danger
-        updatedAt: new Date(latestData.SK), // 최근 측정일
+        status: riskAnalysis.level,
+        updatedAt: new Date(latestData.SK),
         coverage: {
           totalDays: 7,
           daysWithData: history.length,
@@ -64,7 +51,6 @@ export class DashboardService {
         metrics: [
           this.buildMetric('weight', '체중 (kg)', chartHistory, (d) => d.basic_profile?.weight_kg),
           this.buildMetric('meal', '식사량 (회)', chartHistory, (d) => d.lifestyle?.daily_meal_count),
-          // String 데이터(음수량 등)는 점수화해서 차트에 표현
           this.buildMetric('water', '음수량', chartHistory, (d) => this.mapTextToScore(d.lifestyle?.water_intake)),
           this.buildMetric('activity', '활동량', chartHistory, (d) => this.mapTextToScore(d.lifestyle?.activity_level)),
         ],
@@ -81,7 +67,6 @@ export class DashboardService {
     }
   }
 
-  // 2. 주간 리포트
   async getReports(catId: string): Promise<WeeklyReportDto[]> {
     return [
       {
@@ -93,10 +78,6 @@ export class DashboardService {
       },
     ];
   }
-
-  // ---------------------------------------------------------
-  // 🛠️ Private Helper Methods (기존 로직 유지)
-  // ---------------------------------------------------------
 
   private getEmptyState(catId: string): DashboardSummaryDto {
     return {
@@ -160,16 +141,19 @@ export class DashboardService {
     const waterIntake = lifestyle.water_intake?.toUpperCase() || '';
     const activityLevel = lifestyle.activity_level?.toUpperCase() || '';
 
+    // Check Water Intake
     if (waterIntake === 'LOW') {
         score -= 20;
         insights.push('최근 음수량이 부족합니다. 💧');
     }
 
+    // Check Activity Level
     if (activityLevel === 'LOW') {
         score -= 10;
         insights.push('활동량이 떨어졌습니다. 낚싯대로 놀아주세요! 🎣');
     }
 
+    // Check Kidney Issues + Water Intake
     const hasKidneyIssue = medicalHistory.some((h: any) => 
         h.category?.toUpperCase().includes('KIDNEY')
     );
