@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -20,13 +21,18 @@ import {
   RequestUser,
 } from '../common/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthService } from '@/auth/auth.service';
+import e from 'express';
 
 @ApiBearerAuth('access-token')
 @ApiTags('pets')
 @UseGuards(CognitoAuthGuard)
 @Controller('pets')
 export class PetsController {
-  constructor(private readonly petsService: PetsService) {}
+  constructor(
+    private readonly petsService: PetsService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Post()
   @ApiOperation({ 
@@ -37,13 +43,21 @@ export class PetsController {
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateCatProfileDto,
   ) {
-    return this.petsService.create(user.id ?? user.sub, dto);
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.create(exUser.id, dto);
   }
 
   @Get()
   @ApiOperation({ summary: `Get all of my pets' profiles` })
   async findMyPets(@CurrentUser() user: RequestUser) {
-    return this.petsService.findAllByUser(user.id ?? user.sub);
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.findAllByUser(exUser.id);
   }
 
   @Put(':id')
@@ -56,7 +70,11 @@ export class PetsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCatProfileDto,
   ) {
-    return this.petsService.update(user.id ?? user.sub, id, dto);
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.update(exUser.id, id, dto);
   }
 
   @Delete(':id')
@@ -65,6 +83,10 @@ export class PetsController {
     @CurrentUser() user: RequestUser,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.petsService.softDelete(user.id ?? user.sub, id);
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.softDelete(exUser.id, id);
   }
 }

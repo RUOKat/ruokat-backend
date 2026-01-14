@@ -42,10 +42,15 @@ cp .env.example .env
 npm install
 ```
 
-### 3. Prisma generate
+### 3. 데이터베이스
 
-Prisma를 사용하여 데이터베이스 객체를 만듭니다.
+Prisma를 사용하여 데이터베이스 스키마를 관리합니다. `schema.prisma` 파일이 변경된 경우, 다음 명령어를 실행하여 마이그레이션을 적용해야 합니다.
 
+```bash
+npx prisma migrate dev
+```
+
+새로운 클라이언트 코드를 생성하려면 다음을 실행하세요.
 ```bash
 npx prisma generate
 ```
