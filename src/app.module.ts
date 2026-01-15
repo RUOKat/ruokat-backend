@@ -10,6 +10,8 @@ import { UploadsModule } from './uploads/uploads.module';
 
 import { AwsModule } from './aws/aws.module';
 import { ExpoModule } from './expo/expo.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { CareModule } from './care/care.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { ExpoModule } from './expo/expo.module';
     UploadsModule,
     AwsModule,
     ExpoModule,
+    NotificationsModule,
+    CareModule,
   ],
   controllers: [AppController],
 })

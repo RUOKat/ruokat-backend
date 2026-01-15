@@ -3,12 +3,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { CognitoAuthGuard } from './cognito-auth.guard';
 import { CognitoService } from './cognito.service';
+import { PrismaModule } from '../prisma/prisma.module'; 
 
 @Module({
+  imports: [PrismaModule], 
   controllers: [AuthController],
   providers: [AuthService, CognitoAuthGuard, CognitoService],
-  exports: [CognitoAuthGuard, CognitoService],
+  exports: [CognitoAuthGuard, CognitoService, AuthService], 
 })
 export class AuthModule {}
-
-
