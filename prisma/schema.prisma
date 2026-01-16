@@ -8,30 +8,30 @@ datasource db {
 
 model User {
   // [1. 식별자 및 인증]
-  id           String    @id @default(uuid())
-  sub          String    @unique // Cognito User ID (필수)
-  email        String?   @unique
-  
+  id    String  @id @default(uuid())
+  sub   String  @unique // Cognito User ID (필수)
+  email String? @unique
+
   // [2. 프로필 정보]
-  name         String?   // 이름
-  address      String?   // 주소
-  phoneNumber  String?   // 연락처
-  profilePhoto String?   // 프로필 사진 URL
+  name         String? // 이름
+  address      String? // 주소
+  phoneNumber  String? // 연락처
+  profilePhoto String? // 프로필 사진 URL
 
   // [3. 설정]
-  alarmsEnabled Boolean   @default(true) 
-  alarmConfig   Json?     
+  alarmsEnabled Boolean @default(true)
+  alarmConfig   Json?
   pushToken     String?
   deviceInfo    Json?
 
   // [4. 시스템 관리]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime? 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // [5. 관계]
-  pets          Pet[]
-  
+  pets Pet[]
+
   // [NEW] 알림 관계 설정
   notifications Notification[]
 }
@@ -40,24 +40,24 @@ model User {
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-  title     String   // 예: "체크인 기록이 쌓였어요"
-  body      String   // 예: "이번 달 케어 참여 기록이 3일째 이어지고 있어요."
-  type      String   // SYSTEM, CARE, PROMOTION 등 (확장성 고려)
+  title     String // 예: "체크인 기록이 쌓였어요"
+  body      String // 예: "이번 달 케어 참여 기록이 3일째 이어지고 있어요."
+  type      String // SYSTEM, CARE, PROMOTION 등 (확장성 고려)
   isRead    Boolean  @default(false) // 읽음 여부 (뱃지 카운트용)
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // [NEW] 케어/체크인 기록 테이블 (홈 화면 캘린더 도장용)
 model CareLog {
   id        String   @id @default(uuid())
   petId     String
-  date      String   // "2026-01-15" (YYYY-MM-DD 포맷, 조회 편의성 위함)
-  type      String   // "survey"(진단), "checkin"(간편) 등
+  date      String // "2026-01-15" (YYYY-MM-DD 포맷, 조회 편의성 위함)
+  type      String // "survey"(진단), "checkin"(간편) 등
   createdAt DateTime @default(now())
 
-  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   // 한 고양이가 하루에 중복 체크인 방지 (선택 사항)
   @@unique([petId, date])
@@ -132,9 +132,9 @@ enum MedicationSelectionSource {
 }
 
 model Pet {
-  id                 String @id @default(uuid())
-  userId             String
-  user               User   @relation(fields: [userId], references: [id])
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   name               String
   adoptionPath       String
@@ -143,8 +143,8 @@ model Pet {
   agencyCode         String?
 
   dataSharing      Json?
-  careShareStartAt Int?
-  careShareEndAt   Int?
+  careShareStartAt DateTime?
+  careShareEndAt   DateTime?
 
   birthDate       String?
   familyDate      String?
@@ -159,28 +159,28 @@ model Pet {
   foodType               FoodType
   waterSource            WaterSource
   surveyFrequencyPerWeek Int?
-  surveyDays         Weekday[]
-  activityLevel      ActivityLevel?
-  livingEnvironment  LivingEnvironment?
-  multiCat           Boolean?
-  catCount           Int?
-  mealsPerDay        Int?
-  waterIntakeTendency WaterIntakeTendency?
+  surveyDays             Weekday[]
+  activityLevel          ActivityLevel?
+  livingEnvironment      LivingEnvironment?
+  multiCat               Boolean?
+  catCount               Int?
+  mealsPerDay            Int?
+  waterIntakeTendency    WaterIntakeTendency?
 
-  medicalHistory     Json?
-  medications        String?
-  medicationText     String?
-  medicationsSelected Json? 
-  medicationOtherText String?
-  notes              String?
-  vetInfo            String?
+  medicalHistory         Json?
+  medications            String?
+  medicationText         String?
+  medicationsSelected    Json?
+  medicationOtherText    String?
+  notes                  String?
+  vetInfo                String?
   notificationPreference NotificationPreference?
-  profilePhoto       String?
+  profilePhoto           String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // [NEW] 케어 로그 관계 설정
-  careLogs  CareLog[]
+  careLogs CareLog[]
 }

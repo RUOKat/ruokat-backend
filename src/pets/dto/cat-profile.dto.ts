@@ -150,13 +150,13 @@ export class BaseCatProfileDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsInt()
-  careShareStartAt?: number;
+  @IsString()
+  careShareStartAt?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsInt()
-  careShareEndAt?: number;
+  @IsString()
+  careShareEndAt?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -323,7 +323,7 @@ export class BaseCatProfileDto {
   profilePhoto?: string;
 }
 
-export class CreateCatProfileDto extends BaseCatProfileDto {}
+export class CreateCatProfileDto extends BaseCatProfileDto { }
 
 export class UpdateCatProfileDto extends BaseCatProfileDto {
   @ApiProperty({ required: false })
