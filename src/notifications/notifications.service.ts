@@ -6,18 +6,18 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // 1. 내 알림 목록 조회 (최신순)
-  async getMyNotifications(userId: string) {
+  async getMyNotifications(sub: string) {
     return this.prisma.notification.findMany({
-      where: { userId },
+      where: { user: { sub: sub} },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   // 2. 알림 읽음 처리
-  async markAsRead(id: string, userId: string) {
+  async markAsRead(id: string, sub: string) {
     // 내 알림이 맞는지 확인
     const notification = await this.prisma.notification.findFirst({
-      where: { id, userId },
+      where: { id, user: { sub } },
     });
 
     if (!notification) {
@@ -31,7 +31,12 @@ export class NotificationsService {
   }
 
   // 3. (테스트용) 알림 생성
-  async createNotification(userId: string, title: string, body: string) {
+  async createNotification(sub: string, title: string, body: string) {
+    const user = await this.prisma.user.findUnique({ where: { sub } });
+    if (!user) {
+      throw new Error('유저를 찾을 수 없습니다.');
+    }
+    const userId = user.id;
     return this.prisma.notification.create({
       data: {
         userId,

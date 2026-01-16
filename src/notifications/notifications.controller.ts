@@ -13,19 +13,19 @@ export class NotificationsController {
 
   @Get()
   async getNotifications(@Req() req: any) {
-    return this.notificationsService.getMyNotifications(req.user.userId || req.user.sub);
+    return this.notificationsService.getMyNotifications(req.user.sub);
   }
 
   @Patch(':id/read')
   async readNotification(@Req() req: any, @Param('id') id: string) {
-    return this.notificationsService.markAsRead(id, req.user.userId || req.user.sub);
+    return this.notificationsService.markAsRead(id, req.user.sub);
   }
 
   // 👇 DTO 적용된 부분
   @Post('test')
   async createTest(@Req() req: any, @Body() body: CreateNotificationDto) {
     return this.notificationsService.createNotification(
-      req.user.userId || req.user.sub,
+      req.user.sub,
       body.title,
       body.body
     );
