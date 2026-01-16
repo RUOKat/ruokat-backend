@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, UseGuards, Req, Post, Body } from '@nestjs/common';
+import { Controller, Get, Patch, Param, UseGuards, Req, Post, Body, Delete } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CognitoAuthGuard } from '../auth/cognito-auth.guard';
 import { CreateNotificationDto } from './dto/create-notification.dto'; // 👈 DTO import
@@ -21,7 +21,6 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(id, req.user.sub);
   }
 
-  // 👇 DTO 적용된 부분
   @Post('test')
   async createTest(@Req() req: any, @Body() body: CreateNotificationDto) {
     return this.notificationsService.createNotification(
@@ -29,5 +28,10 @@ export class NotificationsController {
       body.title,
       body.body
     );
+  }
+    
+  @Delete(':id')
+  async remove(@Req() req: any, @Param('id') id: string) {
+    return this.notificationsService.remove(id, req.user.sub);
   }
 }

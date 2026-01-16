@@ -7,8 +7,16 @@ export class NotificationsService {
 
   // 1. 내 알림 목록 조회 (최신순)
   async getMyNotifications(sub: string) {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     return this.prisma.notification.findMany({
-      where: { user: { sub: sub} },
+      where: {
+        user: { sub: sub },
+        createdAt: {
+          gte: sevenDaysAgo,
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -46,4 +54,20 @@ export class NotificationsService {
       },
     });
   }
+  // 4. 알림 삭제
+  async remove(id: string, sub: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id, user: { sub } },
+    });
+
+    if (!notification) {
+      throw new Error('알림을 찾을 수 없습니다.');
+    }
+
+    return this.prisma.notification.delete({
+      where: { id },
+    });
+  }
 }
+  
+    
