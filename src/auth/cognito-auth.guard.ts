@@ -9,7 +9,9 @@ import { CognitoService } from './cognito.service';
 
 @Injectable()
 export class CognitoAuthGuard implements CanActivate {
-  constructor(private readonly cognitoService: CognitoService) {}
+  constructor(
+    private readonly cognitoService: CognitoService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();

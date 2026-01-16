@@ -142,21 +142,22 @@ model Pet {
   adoptionAgencyCode String?
   agencyCode         String?
 
-  dataSharing        Json?
-  careShareStartAt   Int?
-  careShareEndAt     Int?
+  dataSharing      Json?
+  careShareStartAt Int?
+  careShareEndAt   Int?
 
-  birthDate          String?
-  estimatedAge       Int?
-  unknownBirthday    Boolean
-  gender             Gender
-  neutered           Boolean
-  breed              String
-  weight             Float
-  bcs                Float?
+  birthDate       String?
+  familyDate      String?
+  estimatedAge    Int?
+  unknownBirthday Boolean
+  gender          Gender
+  neutered        Boolean
+  breed           String
+  weight          Float
+  bcs             Float?
 
-  foodType           FoodType
-  waterSource        WaterSource
+  foodType               FoodType
+  waterSource            WaterSource
   surveyFrequencyPerWeek Int?
   surveyDays         Weekday[]
   activityLevel      ActivityLevel?

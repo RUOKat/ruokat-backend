@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { MedicalHistoryDto } from './medical-history.dto';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -165,6 +165,11 @@ export class BaseCatProfileDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  familyDate?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsInt()
   @Min(0)
   estimatedAge?: number;
@@ -220,6 +225,7 @@ export class BaseCatProfileDto {
 
   @ApiProperty({ required: false, enum: ActivityLevel, enumName: 'ActivityLevel' })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsEnum(ActivityLevel)
   activityLevel?: ActivityLevel;
 
@@ -229,6 +235,7 @@ export class BaseCatProfileDto {
     enumName: 'LivingEnvironment',
   })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsEnum(LivingEnvironment)
   livingEnvironment?: LivingEnvironment;
 
@@ -255,6 +262,7 @@ export class BaseCatProfileDto {
     enumName: 'WaterIntakeTendency',
   })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsEnum(WaterIntakeTendency)
   waterIntakeTendency?: WaterIntakeTendency;
 

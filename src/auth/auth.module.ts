@@ -9,6 +9,6 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [PrismaModule], 
   controllers: [AuthController],
   providers: [AuthService, CognitoAuthGuard, CognitoService],
-  exports: [CognitoAuthGuard, CognitoService, AuthService], 
+  exports: [AuthService, CognitoAuthGuard, CognitoService],
 })
 export class AuthModule {}
