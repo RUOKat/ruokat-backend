@@ -12,6 +12,7 @@ import { AwsModule } from './aws/aws.module';
 import { ExpoModule } from './expo/expo.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CareModule } from './care/care.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -29,9 +30,10 @@ import { CareModule } from './care/care.module';
     ExpoModule,
     NotificationsModule,
     CareModule,
+    AdminModule,
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule { }
 
 
