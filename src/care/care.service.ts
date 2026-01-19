@@ -1,5 +1,6 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CARE_QUESTIONS } from './care-questions.data';
 
 @Injectable()
 export class CareService {
@@ -24,54 +25,68 @@ export class CareService {
     };
   }
 
-  // 2. 오늘 체크인 (도장 찍기)
+  // 2. 오늘 체크인 (도장 찍기) - upsert 방식
   async checkIn(petId: string, checkInDto?: { questions?: any; answers?: any }) {
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
     const kstDate = new Date(now.getTime() + kstOffset);
     const dateString = kstDate.toISOString().split('T')[0];
 
-    try {
-      return await this.prisma.careLog.create({
-        data: {
+    // upsert: 있으면 업데이트, 없으면 생성
+    return await this.prisma.careLog.upsert({
+      where: {
+        petId_date: {
           petId,
           date: dateString,
-          type: 'checkin',
-          questions: checkInDto?.questions || null,
-          answers: checkInDto?.answers || null,
         },
-      });
-    } catch (error) {
-      // 💡 [수정] (error as any)를 붙여서 타입 에러 해결!
-      if ((error as any).code === 'P2002') {
-        throw new ConflictException('이미 오늘 체크인을 완료했습니다.');
-      }
-      throw error;
-    }
+      },
+      update: {
+        questions: checkInDto?.questions || null,
+        answers: checkInDto?.answers || null,
+        type: 'checkin',
+      },
+      create: {
+        petId,
+        date: dateString,
+        type: 'checkin',
+        questions: checkInDto?.questions || null,
+        answers: checkInDto?.answers || null,
+      },
+    });
   }
 
-  // 3. 진단 기록 (diagQuestions, diagAnswers 저장)
+  // 3. 진단 기록 (diagQuestions, diagAnswers 저장) - upsert 방식
   async diag(petId: string, diagDto?: { diagQuestions?: any; diagAnswers?: any }) {
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
     const kstDate = new Date(now.getTime() + kstOffset);
     const dateString = kstDate.toISOString().split('T')[0];
 
-    try {
-      return await this.prisma.careLog.create({
-        data: {
+    // upsert: 있으면 업데이트, 없으면 생성
+    return await this.prisma.careLog.upsert({
+      where: {
+        petId_date: {
           petId,
           date: dateString,
-          type: 'diag',
-          diagQuestions: diagDto?.diagQuestions || null,
-          diagAnswers: diagDto?.diagAnswers || null,
         },
-      });
-    } catch (error) {
-      if ((error as any).code === 'P2002') {
-        throw new ConflictException('이미 오늘 진단을 완료했습니다.');
-      }
-      throw error;
-    }
+      },
+      update: {
+        diagQuestions: diagDto?.diagQuestions || null,
+        diagAnswers: diagDto?.diagAnswers || null,
+        type: 'diag',
+      },
+      create: {
+        petId,
+        date: dateString,
+        type: 'diag',
+        diagQuestions: diagDto?.diagQuestions || null,
+        diagAnswers: diagDto?.diagAnswers || null,
+      },
+    });
+  }
+
+  // 4. 질문 데이터 조회
+  async getQuestions() {
+    return CARE_QUESTIONS;
   }
 }

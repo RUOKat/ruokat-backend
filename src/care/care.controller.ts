@@ -7,13 +7,20 @@ import { DiagDto } from './dto/diag.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Care')
-@ApiBearerAuth('access-token')
-@UseGuards(CognitoAuthGuard)
 @Controller('care')
 export class CareController {
   constructor(private readonly careService: CareService) { }
 
-  // 👇 DTO 적용된 부분 (쿼리 파라미터 검사)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get('questions')
+  async getQuestions() {
+    return this.careService.getQuestions();
+  }
+
+  // Protected endpoints below
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
   @Get(':petId/monthly')
   async getMonthlyCare(
     @Param('petId') petId: string,
@@ -22,6 +29,8 @@ export class CareController {
     return this.careService.getMonthlyCare(petId, query.year, query.month);
   }
 
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
   @Post(':petId/check-in')
   async checkIn(
     @Param('petId') petId: string,
@@ -30,6 +39,8 @@ export class CareController {
     return this.careService.checkIn(petId, checkInDto);
   }
 
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
   @Post(':petId/diag')
   async diag(
     @Param('petId') petId: string,

@@ -1,4 +1,4 @@
-import { IsOptional, IsObject } from 'class-validator';
+import { IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DiagDto {
@@ -10,17 +10,15 @@ export class DiagDto {
     ]
   })
   @IsOptional()
-  @IsObject()
   diagQuestions?: any;
 
   @ApiPropertyOptional({
     description: '진단 답변 목록',
-    example: [
-      { questionId: 'dq1', answer: 'yes' },
-      { questionId: 'dq2', answer: 'no' }
-    ]
+    example: {
+      dq1: 'yes',
+      dq2: 'no'
+    }
   })
   @IsOptional()
-  @IsObject()
   diagAnswers?: any;
 }
