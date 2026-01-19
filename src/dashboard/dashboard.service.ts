@@ -17,7 +17,7 @@ export class DashboardService {
     private configService: ConfigService,
     private dynamoDBService: DynamoDBService,
   ) {
-    this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
+    this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_HIST_TABLE_NAME');
   }
 
   async getSummary(catId: string): Promise<DashboardSummaryDto> {

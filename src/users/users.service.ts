@@ -43,7 +43,7 @@ export class UsersService {
       where: { id: user.id },
       data: {
         pushToken: dto.pushToken,
-        deviceInfo: dto.deviceInfo ?? undefined, // null이면 undefined로 처리
+        deviceInfo: dto.deviceInfo
       },
     });
   }

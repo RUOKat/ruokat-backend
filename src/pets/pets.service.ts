@@ -10,14 +10,14 @@ import {
 
 @Injectable()
 export class PetsService {
-  private readonly tableName: string;
+  private readonly histTableName: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly dynamoDBService: DynamoDBService,
   ) {
-    this.tableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_TABLE_NAME');
+    this.histTableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_HIST_TABLE_NAME');
   }
 
   async create(userId: string, dto: CreateCatProfileDto) {
@@ -170,7 +170,7 @@ export class PetsService {
       const marshalledItem = marshall(rawData, { removeUndefinedValues: true });
       console.log("dynamodb updated", marshalledItem);
       
-      await this.dynamoDBService.putItem(this.tableName, marshalledItem);
+      await this.dynamoDBService.putItem(this.histTableName, marshalledItem);
     } catch (error) {
       console.error(`[DynamoDB Error] Failed to save history for ${petId}:`, error);
     }
