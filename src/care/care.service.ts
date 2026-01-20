@@ -1,10 +1,16 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { DynamoDBService } from '../aws/dynamodb.service';
 import { CARE_QUESTIONS } from './care-questions.data';
 
 @Injectable()
 export class CareService {
-  constructor(private readonly prisma: PrismaService) { }
+  private readonly logger = new Logger(CareService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dynamoDBService: DynamoDBService,
+  ) { }
 
   // 1. 월간 케어 기록 조회 (캘린더용)
   async getMonthlyCare(petId: string, year: string, month: string) {
@@ -85,12 +91,77 @@ export class CareService {
     });
   }
 
-  // 4. 질문 데이터 조회
+  // 4. 질문 데이터 조회 (기본)
   async getQuestions() {
     return CARE_QUESTIONS;
   }
 
-  // 5. 특정 날짜의 케어 로그 조회
+  // 5. petId별 맞춤 질문 조회 (DynamoDB question_bank 포함)
+  async getQuestionsForPet(petId: string) {
+    const baseQuestions = { ...CARE_QUESTIONS } as any;
+
+    try {
+      // DynamoDB에서 해당 petId의 가장 최근 데이터 조회
+      const tableName = process.env.AWS_DYNAMODB_UPDATED_TABLE_NAME;
+      if (!tableName) {
+        this.logger.warn('AWS_DYNAMODB_UPDATED_TABLE_NAME not configured');
+        return baseQuestions;
+      }
+
+      const items = await this.dynamoDBService.query({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: petId },
+        },
+        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
+        Limit: 1,
+      });
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No DynamoDB data found for petId: ${petId}`);
+        return baseQuestions;
+      }
+
+      const latestItem = items[0];
+      const questionBankRaw = latestItem.question_bank?.L;
+
+      if (!questionBankRaw || questionBankRaw.length === 0) {
+        this.logger.log(`No question_bank found for petId: ${petId}`);
+        return baseQuestions;
+      }
+
+      // question_bank에서 랜덤으로 하나 선택
+      const randomIndex = Math.floor(Math.random() * questionBankRaw.length);
+      const randomQuestionText = questionBankRaw[randomIndex]?.S;
+
+      if (randomQuestionText) {
+        // 6번째 질문으로 추가
+        const customQuestion = {
+          id: 'q6_custom',
+          text: randomQuestionText,
+          description: '오늘의 맞춤 질문이에요.',
+          type: 'yesno',
+          options: [
+            { value: 'yes', label: '예', score: 1 },
+            { value: 'no', label: '아니오', score: 0 },
+            { value: 'unknown', label: '잘 모르겠어요', score: 0 },
+          ],
+          category: 'DAILY',
+        };
+
+        baseQuestions.onboarding.q6_custom = customQuestion;
+        this.logger.log(`Added custom question for petId: ${petId}`);
+      }
+
+      return baseQuestions;
+    } catch (error) {
+      this.logger.error(`Failed to fetch question_bank from DynamoDB: ${error}`);
+      return baseQuestions;
+    }
+  }
+
+  // 6. 특정 날짜의 케어 로그 조회
   async getCareLogByDate(petId: string, date: string) {
     const log = await this.prisma.careLog.findUnique({
       where: {

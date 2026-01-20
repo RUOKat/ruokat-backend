@@ -18,6 +18,14 @@ export class CareController {
     return this.careService.getQuestions();
   }
 
+  // petId별 맞춤 질문 (DynamoDB question_bank 포함)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/questions')
+  async getQuestionsForPet(@Param('petId') petId: string) {
+    return this.careService.getQuestionsForPet(petId);
+  }
+
   // Protected endpoints below
   @ApiBearerAuth('access-token')
   @UseGuards(CognitoAuthGuard)
