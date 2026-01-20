@@ -31,15 +31,15 @@ export class CareService {
     };
   }
 
-  // 2. 오늘 체크인 (도장 찍기) - upsert 방식
+  // 2. 오늘 체크인 (도장 찍기) - upsert 방식 + DynamoDB 저장
   async checkIn(petId: string, checkInDto?: { questions?: any; answers?: any }) {
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
     const kstDate = new Date(now.getTime() + kstOffset);
     const dateString = kstDate.toISOString().split('T')[0];
 
-    // upsert: 있으면 업데이트, 없으면 생성
-    return await this.prisma.careLog.upsert({
+    // 1. PostgreSQL에 upsert
+    const result = await this.prisma.careLog.upsert({
       where: {
         petId_date: {
           petId,
@@ -59,6 +59,82 @@ export class CareService {
         answers: checkInDto?.answers || null,
       },
     });
+
+    // 2. DynamoDB에도 저장
+    try {
+      await this.saveToDynamoDB(petId, dateString, checkInDto);
+    } catch (error) {
+      this.logger.error(`Failed to save to DynamoDB: ${error}`);
+      // DynamoDB 저장 실패해도 PostgreSQL 저장은 성공으로 처리
+    }
+
+    return result;
+  }
+
+  // DynamoDB에 데일리 기록 저장
+  private async saveToDynamoDB(
+    petId: string,
+    dateString: string,
+    checkInDto?: { questions?: any; answers?: any },
+  ) {
+    const tableName = process.env.AWS_DYNAMODB_DAILY_RECORD_TABLE_NAME;
+    if (!tableName) {
+      this.logger.warn('AWS_DYNAMODB_DAILY_RECORD_TABLE_NAME not configured');
+      return;
+    }
+
+    const answers = checkInDto?.answers || {};
+    const questions = checkInDto?.questions || [];
+
+    // 답변에서 각 필드 추출 (label 값으로 저장)
+    const getAnswerLabel = (questionId: string): string => {
+      const answerValue = answers[questionId];
+      if (!answerValue) return '';
+
+      // questions 배열에서 해당 질문 찾기
+      const question = questions.find((q: any) => q.id === questionId);
+      if (question?.options) {
+        const option = question.options.find((opt: any) => opt.value === answerValue);
+        if (option?.label) return option.label;
+      }
+      return answerValue;
+    };
+
+    // 6번째 질문 (q6_custom) 처리 - additional_info로 저장
+    const additionalInfo: { q: string; a: string }[] = [];
+    const customQuestion = questions.find((q: any) => q.id === 'q6_custom');
+    if (customQuestion && answers['q6_custom']) {
+      additionalInfo.push({
+        q: customQuestion.text || '',
+        a: getAnswerLabel('q6_custom'),
+      });
+    }
+
+    const item: Record<string, any> = {
+      PK: { S: petId },
+      SK: { S: `DATE#${dateString}` },
+      created_at: { S: new Date().toISOString() },
+      food: { S: getAnswerLabel('q1_food_intake') },
+      water: { S: getAnswerLabel('q2_water_intake') },
+      weight: { S: answers['q3_weight'] || '' },
+      stool: { S: getAnswerLabel('q4_poop') },
+      urine: { S: getAnswerLabel('q5_urine') },
+    };
+
+    // additional_info가 있으면 추가
+    if (additionalInfo.length > 0) {
+      item.additional_info = {
+        L: additionalInfo.map((info) => ({
+          M: {
+            q: { S: info.q },
+            a: { S: info.a },
+          },
+        })),
+      };
+    }
+
+    await this.dynamoDBService.putItem(tableName, item);
+    this.logger.log(`Saved daily record to DynamoDB for petId: ${petId}, date: ${dateString}`);
   }
 
   // 3. 진단 기록 (diagQuestions, diagAnswers 저장) - upsert 방식
