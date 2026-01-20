@@ -1,0 +1,43 @@
+name: Backend CI (Build & Push)
+
+on:
+  push:
+    branches: [ "dev" ]  # 백엔드 개발 브랜치
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: ruokat/backend-api  # ✅ [수정완료] 앞부분 주소 떼고 이름만 남김!
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. AWS 인증
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 2. ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 3. 도커 빌드 & 푸시
+      - name: Build & Push
+        run: |
+          # registry 주소 + 리포지토리 이름 조합
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          
+          docker build -t $IMAGE_URI:${{ github.sha }} .
+          
+          docker push $IMAGE_URI:${{ github.sha }}
+          docker tag $IMAGE_URI:${{ github.sha }} $IMAGE_URI:latest
+          docker push $IMAGE_URI:latest
