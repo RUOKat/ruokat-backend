@@ -10,7 +10,7 @@ permissions:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: 132464628555.dkr.ecr.ap-northeast-2.amazonaws.com/ruokat/backend-api  # ⚠️ [수정필요] 실제 ECR 리포지토리 이름
+  ECR_REPOSITORY: ruokat/backend-api  # ✅ [수정완료] 앞부분 주소 떼고 이름만 남김!
 
 jobs:
   build-and-push:
@@ -25,24 +25,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 2. Node.js 세팅 (의존성 설치 테스트용)
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install Dependencies
-        run: npm ci  # package-lock.json 기준 설치
-
-      # 3. ECR 로그인
+      # 2. ECR 로그인
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4. 도커 빌드 & 푸시
+      # 3. 도커 빌드 & 푸시
       - name: Build & Push
-        # working-directory 삭제됨 (루트 기준)
         run: |
+          # registry 주소 + 리포지토리 이름 조합
           IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
           
           docker build -t $IMAGE_URI:${{ github.sha }} .
