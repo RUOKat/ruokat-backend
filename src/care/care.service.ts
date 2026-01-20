@@ -89,4 +89,18 @@ export class CareService {
   async getQuestions() {
     return CARE_QUESTIONS;
   }
+
+  // 5. 특정 날짜의 케어 로그 조회
+  async getCareLogByDate(petId: string, date: string) {
+    const log = await this.prisma.careLog.findUnique({
+      where: {
+        petId_date: {
+          petId,
+          date,
+        },
+      },
+    });
+
+    return log;
+  }
 }

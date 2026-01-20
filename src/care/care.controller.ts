@@ -48,4 +48,14 @@ export class CareController {
   ) {
     return this.careService.diag(petId, diagDto);
   }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/log/:date')
+  async getCareLog(
+    @Param('petId') petId: string,
+    @Param('date') date: string,
+  ) {
+    return this.careService.getCareLogByDate(petId, date);
+  }
 }
