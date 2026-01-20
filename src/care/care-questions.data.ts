@@ -1,4 +1,89 @@
+// 데일리 기록 질문 (1차 확정)
+// 고정 체크 항목 5가지: 식사량, 음수량, 체중, 배변량, 배뇨량
 export const CARE_QUESTIONS = {
+  onboarding: {
+    // 1. 식사량
+    q1_food_intake: {
+      id: "q1_food_intake",
+      text: "오늘 식사량은 어땠나요?",
+      description: "평소 식사량과 비교해서 선택해주세요.",
+      type: "single",
+      options: [
+        { value: "none", label: "안 먹음", score: 3 },
+        { value: "less", label: "평소보다 적게", score: 1 },
+        { value: "normal", label: "평소만큼", score: 0 },
+        { value: "more", label: "평소보다 많이", score: 1 }
+      ],
+      category: "DAILY"
+    },
+    // 2. 음수량
+    q2_water_intake: {
+      id: "q2_water_intake",
+      text: "오늘 물은 얼마나 마셨나요?",
+      description: "평소 음수량과 비교해서 선택해주세요.",
+      type: "single",
+      options: [
+        { value: "none", label: "거의 안 마심", score: 3 },
+        { value: "less", label: "평소보다 적음", score: 1 },
+        { value: "normal", label: "평소 수준", score: 0 },
+        { value: "more", label: "평소보다 많음", score: 1 }
+      ],
+      category: "DAILY"
+    },
+    // 3. 체중 (숫자 입력)
+    q3_weight: {
+      id: "q3_weight",
+      text: "오늘 체중을 입력해주세요 (kg)",
+      description: "소숫점 2자리까지 입력 가능해요. (예: 4.25)",
+      type: "number",
+      options: [],
+      category: "DAILY",
+      validation: {
+        min: 0.1,
+        max: 30,
+        step: 0.01
+      }
+    },
+    // 4. 배변량
+    q4_poop: {
+      id: "q4_poop",
+      text: "오늘 배변 상태는 어땠나요?",
+      description: "배변량과 상태를 선택해주세요.",
+      type: "single",
+      options: [
+        { value: "none", label: "없음", score: 2 },
+        { value: "diarrhea", label: "설사", score: 3 },
+        { value: "less", label: "평소보다 적게", score: 1 },
+        { value: "normal", label: "평소만큼", score: 0 },
+        { value: "more", label: "평소보다 많이", score: 1 }
+      ],
+      category: "DAILY"
+    },
+    // 5. 배뇨량
+    q5_urine: {
+      id: "q5_urine",
+      text: "오늘 배뇨량은 어땠나요?",
+      description: "평소 배뇨량과 비교해서 선택해주세요.",
+      type: "single",
+      options: [
+        { value: "none", label: "없음", score: 3 },
+        { value: "less", label: "평소보다 적게", score: 1 },
+        { value: "normal", label: "평소만큼", score: 0 },
+        { value: "more", label: "평소보다 많이", score: 1 }
+      ],
+      category: "DAILY"
+    }
+  },
+  followUp: {
+    // followUp은 현재 사용하지 않음 (빈 객체)
+    DAILY: []
+  }
+};
+
+/* ============================================
+ * 기존 온보딩/진단 질문 (주석 처리)
+ * ============================================
+export const CARE_QUESTIONS_OLD = {
   onboarding: {
     q1_urinary_male: {
       id: "q1_urinary_male",
@@ -269,3 +354,4 @@ export const CARE_QUESTIONS = {
     ]
   }
 };
+*/
