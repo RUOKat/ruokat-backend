@@ -529,4 +529,92 @@ export class CareService {
       dailyData, // 일별 데이터 추가
     };
   }
+
+  // 9. 일일 리포트 조회 (DynamoDB DiagnosticTable final_report)
+  async getDailyReports(petId: string) {
+    try {
+      const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
+      if (!tableName) {
+        this.logger.warn('AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME not configured');
+        return [];
+      }
+
+      // DynamoDB에서 해당 petId의 모든 데이터 조회 (최신순)
+      const items = await this.dynamoDBService.query({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: petId },
+        },
+        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
+      });
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No diagnostic data found for petId: ${petId}`);
+        return [];
+      }
+
+      // final_report가 있는 항목만 필터링하고 변환
+      const reports = items
+        .filter((item: any) => item.final_report?.S)
+        .map((item: any) => {
+          const sk = item.SK?.S || '';
+          // SK 형식: DATE#2025-01-21
+          const dateMatch = sk.match(/DATE#(\d{4}-\d{2}-\d{2})/);
+          const date = dateMatch ? dateMatch[1] : '';
+
+          const finalReport = item.final_report?.S || '';
+          const createdAt = item.created_at?.S || item.answered_at?.S || '';
+
+          // 날짜 포맷 (MM월 DD일)
+          let dateLabel = date;
+          if (date) {
+            const reportDate = new Date(date);
+            dateLabel = reportDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+          }
+
+          // 리포트 요약 (마크다운 제거 후 앞 50자)
+          const cleanReport = finalReport
+            .replace(/#{1,6}\s*/g, '') // 헤더 제거
+            .replace(/\*\*([^*]+)\*\*/g, '$1') // 볼드 제거
+            .replace(/\*([^*]+)\*/g, '$1') // 이탤릭 제거
+            .replace(/`([^`]+)`/g, '$1') // 인라인 코드 제거
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 링크 제거
+            .replace(/^[-*+]\s+/gm, '') // 리스트 마커 제거
+            .replace(/^\d+\.\s+/gm, '') // 숫자 리스트 제거
+            .replace(/>\s*/g, '') // 인용문 제거
+            .replace(/\n+/g, ' ') // 줄바꿈을 공백으로
+            .trim();
+          const summary = cleanReport.length > 50
+            ? cleanReport.substring(0, 50) + '...'
+            : cleanReport;
+
+          // 상태 결정 (리포트 내용 기반 간단한 분석)
+          let status: 'normal' | 'caution' | 'check' = 'normal';
+          const lowerReport = finalReport.toLowerCase();
+          if (lowerReport.includes('주의') || lowerReport.includes('감소') || lowerReport.includes('변화')) {
+            status = 'caution';
+          }
+          if (lowerReport.includes('확인') || lowerReport.includes('병원') || lowerReport.includes('위험')) {
+            status = 'check';
+          }
+
+          return {
+            id: date,
+            date,
+            dateLabel,
+            status,
+            summary,
+            fullReport: finalReport,
+            createdAt,
+          };
+        });
+
+      this.logger.log(`Fetched ${reports.length} daily reports for petId: ${petId}`);
+      return reports;
+    } catch (error) {
+      this.logger.error(`Failed to fetch daily reports from DynamoDB: ${error}`);
+      return [];
+    }
+  }
 }

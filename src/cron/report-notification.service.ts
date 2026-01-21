@@ -112,10 +112,21 @@ export class ReportNotificationService {
           continue;
         }
 
-        // 5. 리포트 앞부분 추출 (최대 50자)
-        const reportPreview = finalReport.length > 50
-          ? finalReport.substring(0, 50) + '...'
-          : finalReport;
+        // 5. 리포트 앞부분 추출 (마크다운 제거 후 최대 50자)
+        const cleanReport = finalReport
+          .replace(/#{1,6}\s*/g, '') // 헤더 제거
+          .replace(/\*\*([^*]+)\*\*/g, '$1') // 볼드 제거
+          .replace(/\*([^*]+)\*/g, '$1') // 이탤릭 제거
+          .replace(/`([^`]+)`/g, '$1') // 인라인 코드 제거
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 링크 제거
+          .replace(/^[-*+]\s+/gm, '') // 리스트 마커 제거
+          .replace(/^\d+\.\s+/gm, '') // 숫자 리스트 제거
+          .replace(/>\s*/g, '') // 인용문 제거
+          .replace(/\n+/g, ' ') // 줄바꿈을 공백으로
+          .trim();
+        const reportPreview = cleanReport.length > 50
+          ? cleanReport.substring(0, 50) + '...'
+          : cleanReport;
 
         // 6. 푸시 알림 전송 및 DB 저장
         const title = `${pet.name}의 건강 리포트가 도착했어요 📋`;

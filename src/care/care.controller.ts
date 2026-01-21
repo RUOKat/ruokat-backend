@@ -85,4 +85,12 @@ export class CareController {
   ) {
     return this.careService.getMonthlyStats(petId, query.year, query.month);
   }
+
+  // 일일 리포트 조회 (DynamoDB DiagnosticTable final_report)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/daily-reports')
+  async getDailyReports(@Param('petId') petId: string) {
+    return this.careService.getDailyReports(petId);
+  }
 }
