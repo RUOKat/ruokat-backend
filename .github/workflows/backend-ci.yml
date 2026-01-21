@@ -3,7 +3,7 @@ name: Backend CI (Build & Push)
 on:
   push:
     branches: [ "dev" ]  # 백엔드 개발 브랜치
-
+  workflow_dispatch:
 permissions:
   id-token: write
   contents: read
