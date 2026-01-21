@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+    
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref']
+            ],
+            causeString: 'Triggered by GitHub Push',
+            token: 'backend-deploy-token',
+            printContributedVariables: true,
+            printPostContent: true,
+            regexpFilterText: '$ref',
+            regexpFilterExpression: 'refs/heads/dev'  // dev 브랜치만 감지
+            // regexpFilterExpression: 'refs/heads/main'  // main 브랜치 (주석 처리)
+        )
+    }
+    
+    environment {
+        AWS_REGION = 'ap-northeast-2'
+        ECS_CLUSTER = 'ruokat-cluster'
+        ECS_SERVICE = 'ruokat-backend-service'
+    }
+    stages {
+        stage('Verify AWS Identity') {
+            steps {
+                sh "aws sts get-caller-identity"
+            }
+        }
+        stage('Deploy to ECS') {
+            steps {
+                script {
+                    echo "🚀 Deploying ${ECS_SERVICE} to ${ECS_CLUSTER}..."
+                    
+                    // ECS 서비스 강제 재배포
+                    sh """
+                        aws ecs update-service \
+                            --cluster ${ECS_CLUSTER} \
+                            --service ${ECS_SERVICE} \
+                            --force-new-deployment \
+                            --region ${AWS_REGION}
+                    """
+                    
+                    // 배포 트리거 완료 (안정화 대기는 생략 - 시간 오래 걸림)
+                    echo "📋 Deployment triggered. Check ECS console for status."
+                    
+                    echo "✅ Backend deployment triggered successfully!"
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            echo "❌ Backend deployment failed!"
+        }
+    }
+}

@@ -11,7 +11,7 @@ COPY prisma ./prisma/
 # 의존성 설치 (Prisma 클라이언트 생성 포함)
 RUN npm ci
 RUN npx prisma generate
-RUN npx prisma migrate deploy ##최승우가 테스트용으로 잠시 막음
+# migrate deploy는 런타임에 실행 (빌드 시에는 DATABASE_URL이 없음)
 
 # 전체 소스 복사 및 빌드
 COPY . .
@@ -34,5 +34,5 @@ COPY --from=builder /app/prisma ./prisma
 # 서비스 포트 노출 (NestJS 기본값 3000)
 EXPOSE 3000
 
-# 애플리케이션 실행
-CMD ["npm", "run", "start:prod"]
+# 애플리케이션 실행 (migrate deploy 후 서버 시작)
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]
