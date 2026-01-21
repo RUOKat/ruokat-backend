@@ -269,7 +269,7 @@ export class BaseCatProfileDto {
   @ApiProperty({ required: false, type: MedicalHistoryDto })
   @IsOptional()
   @ValidateNested()
-  @Type(() => Object)
+  @Type(() => MedicalHistoryDto)
   medicalHistory?: MedicalHistoryDto;
 
   @ApiProperty({ required: false })

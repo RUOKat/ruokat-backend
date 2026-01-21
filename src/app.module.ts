@@ -13,6 +13,7 @@ import { ExpoModule } from './expo/expo.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CareModule } from './care/care.module';
 import { AdminModule } from './admin/admin.module';
+import { CronModule } from './cron/cron.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AdminModule } from './admin/admin.module';
     NotificationsModule,
     CareModule,
     AdminModule,
+    CronModule,
   ],
   controllers: [AppController],
 })

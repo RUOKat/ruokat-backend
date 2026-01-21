@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ExpoService } from 'src/expo/expo.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly expoService: ExpoService,
+  ) { }
 
   // 1. 내 알림 목록 조회 (최신순)
   async getMyNotifications(sub: string) {
@@ -54,6 +58,7 @@ export class NotificationsService {
       },
     });
   }
+
   // 4. 알림 삭제
   async remove(id: string, sub: string) {
     const notification = await this.prisma.notification.findFirst({
@@ -68,6 +73,60 @@ export class NotificationsService {
       where: { id },
     });
   }
+
+  // 5. 푸시 알림 전송 및 DB 저장
+  async sendPushNotification(
+    userId: string,
+    pushToken: string,
+    title: string,
+    body: string,
+    type: string,
+    data?: Record<string, any>,
+  ) {
+    // 푸시 토큰 유효성 검사
+    if (!pushToken || !this.expoService.isExpoPushToken(pushToken)) {
+      return null;
+    }
+
+    // 푸시 알림 전송
+    await this.expoService.sendPushNotifications([
+      {
+        to: pushToken,
+        sound: 'default',
+        title,
+        body,
+        data,
+      },
+    ]);
+
+    // DB에 알림 기록 저장
+    return this.prisma.notification.create({
+      data: {
+        userId,
+        title,
+        body,
+        type,
+      },
+    });
+  }
+
+  // 6. 중복 알림 체크
+  async hasNotificationToday(type: string, bodyContains: string): Promise<boolean> {
+    const now = new Date();
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const kstDate = new Date(now.getTime() + kstOffset);
+    const todayString = kstDate.toISOString().split('T')[0];
+    const todayStart = new Date(todayString + 'T00:00:00.000Z');
+
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        type,
+        createdAt: { gte: todayStart },
+        body: { contains: bodyContains },
+      },
+    });
+
+    return !!existing;
+  }
 }
-  
-    
+

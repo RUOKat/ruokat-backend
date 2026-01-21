@@ -167,9 +167,12 @@ export class PetsService {
         createdAt: new Date().toISOString(),
       };
 
-      const marshalledItem = marshall(rawData, { removeUndefinedValues: true });
+      const marshalledItem = marshall(rawData, {
+        removeUndefinedValues: true,
+        convertClassInstanceToMap: true,
+      });
       console.log("dynamodb updated", marshalledItem);
-      
+
       await this.dynamoDBService.putItem(this.histTableName, marshalledItem);
     } catch (error) {
       console.error(`[DynamoDB Error] Failed to save history for ${petId}:`, error);

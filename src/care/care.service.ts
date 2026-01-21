@@ -344,8 +344,8 @@ export class CareService {
         return [];
       }
 
-      // DynamoDB 형식을 파싱하여 프론트엔드에서 사용할 수 있는 형식으로 변환
-      const questions = generatedQuestionsRaw.slice(0, 3).map((item: any, index: number) => {
+      // DynamoDB 형식을 파싱하여 프론트엔드에서 사용할 수 있는 형식으로 변환 (모든 질문)
+      const questions = generatedQuestionsRaw.map((item: any, index: number) => {
         const questionData = item.M;
         const questionText = questionData?.question?.S || '';
         const optionsData = questionData?.options?.M || {};
