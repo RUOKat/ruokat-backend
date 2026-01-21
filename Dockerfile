@@ -11,7 +11,7 @@ COPY prisma ./prisma/
 # 의존성 설치 (Prisma 클라이언트 생성 포함)
 RUN npm ci
 RUN npx prisma generate
-#RUN npx prisma migrate deploy # 최승우가 테스트용으로 수정
+RUN npx prisma migrate deploy 
 
 # 전체 소스 복사 및 빌드
 COPY . .
