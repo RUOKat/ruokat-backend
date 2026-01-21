@@ -5,12 +5,14 @@ import {
   GetItemCommand,
   QueryCommand,
   QueryCommandInput,
+  UpdateItemCommand,
+  UpdateItemCommandInput,
   AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 
 @Injectable()
 export class DynamoDBService {
-  constructor(private readonly awsService: AwsService) {}
+  constructor(private readonly awsService: AwsService) { }
 
   async putItem(
     tableName: string,
@@ -39,5 +41,10 @@ export class DynamoDBService {
     const command = new QueryCommand(params);
     const result = await this.awsService.dynamodb.send(command);
     return result.Items;
+  }
+
+  async updateItem(params: UpdateItemCommandInput) {
+    const command = new UpdateItemCommand(params);
+    return this.awsService.dynamodb.send(command);
   }
 }

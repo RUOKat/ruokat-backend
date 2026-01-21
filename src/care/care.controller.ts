@@ -74,4 +74,15 @@ export class CareController {
   ) {
     return this.careService.getCareLogByDate(petId, date);
   }
+
+  // 월간 케어 통계 (핵심 지표)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/monthly-stats')
+  async getMonthlyStats(
+    @Param('petId') petId: string,
+    @Query() query: GetMonthlyCareDto,
+  ) {
+    return this.careService.getMonthlyStats(petId, query.year, query.month);
+  }
 }

@@ -137,15 +137,15 @@ export class CareService {
     this.logger.log(`Saved daily record to DynamoDB for petId: ${petId}, date: ${dateString}`);
   }
 
-  // 3. 진단 기록 (diagQuestions, diagAnswers 저장) - upsert 방식
+  // 3. 진단 기록 (diagQuestions, diagAnswers 저장) - upsert 방식 + DynamoDB 저장
   async diag(petId: string, diagDto?: { diagQuestions?: any; diagAnswers?: any }) {
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
     const kstDate = new Date(now.getTime() + kstOffset);
     const dateString = kstDate.toISOString().split('T')[0];
 
-    // upsert: 있으면 업데이트, 없으면 생성
-    return await this.prisma.careLog.upsert({
+    // 1. PostgreSQL에 upsert
+    const result = await this.prisma.careLog.upsert({
       where: {
         petId_date: {
           petId,
@@ -165,6 +165,66 @@ export class CareService {
         diagAnswers: diagDto?.diagAnswers || null,
       },
     });
+
+    // 2. DynamoDB DiagnosticTable에 answers 저장
+    try {
+      await this.saveDiagToDynamoDB(petId, dateString, diagDto);
+    } catch (error) {
+      this.logger.error(`Failed to save diag to DynamoDB: ${error}`);
+      // DynamoDB 저장 실패해도 PostgreSQL 저장은 성공으로 처리
+    }
+
+    return result;
+  }
+
+  // DynamoDB DiagnosticTable에 진단 답변 저장
+  private async saveDiagToDynamoDB(
+    petId: string,
+    dateString: string,
+    diagDto?: { diagQuestions?: any; diagAnswers?: any },
+  ) {
+    const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
+    if (!tableName) {
+      this.logger.warn('AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME not configured');
+      return;
+    }
+
+    const diagQuestions = diagDto?.diagQuestions || [];
+    const diagAnswers = diagDto?.diagAnswers || {};
+
+    // answers 배열 생성: [{q: 질문, a: 답변}, ...]
+    const answersArray: { q: string; a: string }[] = diagQuestions.map((question: any) => {
+      const answerValue = diagAnswers[question.id] || '';
+      // 선택된 옵션의 label 찾기
+      const selectedOption = question.options?.find((opt: any) => opt.value === answerValue);
+      return {
+        q: question.text || '',
+        a: selectedOption?.label || answerValue,
+      };
+    });
+
+    // 기존 항목 업데이트
+    await this.dynamoDBService.updateItem({
+      TableName: tableName,
+      Key: {
+        PK: { S: petId },
+        SK: { S: `DATE#${dateString}` },
+      },
+      UpdateExpression: 'SET answers = :answers, answered_at = :answered_at',
+      ExpressionAttributeValues: {
+        ':answers': {
+          L: answersArray.map((item) => ({
+            M: {
+              q: { S: item.q },
+              a: { S: item.a },
+            },
+          })),
+        },
+        ':answered_at': { S: new Date().toISOString() },
+      },
+    });
+
+    this.logger.log(`Saved diag answers to DynamoDB for petId: ${petId}, date: ${dateString}`);
   }
 
   // 4. 질문 데이터 조회 (기본)
@@ -315,5 +375,158 @@ export class CareService {
       this.logger.error(`Failed to fetch diag questions from DynamoDB: ${error}`);
       return [];
     }
+  }
+
+  // 8. 월간 케어 통계 조회 (핵심 지표)
+  async getMonthlyStats(petId: string, year: string, month: string) {
+    const searchPrefix = `${year}-${month.padStart(2, '0')}`;
+
+    const logs = await this.prisma.careLog.findMany({
+      where: {
+        petId,
+        date: { startsWith: searchPrefix },
+      },
+      select: {
+        date: true,
+        answers: true,
+      },
+      orderBy: {
+        date: 'asc',
+      },
+    });
+
+    // 통계 계산
+    const stats = {
+      totalDays: logs.length,
+      food: { normal: 0, less: 0, more: 0, none: 0 },
+      water: { normal: 0, less: 0, more: 0, none: 0 },
+      stool: { normal: 0, less: 0, more: 0, none: 0, diarrhea: 0 },
+      urine: { normal: 0, less: 0, more: 0, none: 0 },
+      weights: [] as number[],
+      latestWeight: null as number | null,
+    };
+
+    // 일별 데이터 (그래프용)
+    const dailyData: {
+      date: string;
+      day: number;
+      food: number;
+      water: number;
+      stool: number;
+      urine: number;
+      weight: number | null;
+    }[] = [];
+
+    // 값을 숫자로 변환하는 헬퍼 함수
+    const valueToScore = (value: string | undefined, type: string): number => {
+      if (!value) return 50; // 기본값
+
+      // 식사량/배변량/배뇨량
+      if (type === 'food' || type === 'stool' || type === 'urine') {
+        if (value === 'none' || value === '안 먹음' || value === '없음') return 0;
+        if (value === 'less' || value === '평소보다 적게') return 30;
+        if (value === 'normal' || value === '평소만큼') return 50;
+        if (value === 'more' || value === '평소보다 많이') return 70;
+        if (value === 'diarrhea' || value === '설사') return 20;
+      }
+
+      // 음수량
+      if (type === 'water') {
+        if (value === 'none' || value === '거의 안 마심') return 0;
+        if (value === 'less' || value === '평소보다 적음') return 30;
+        if (value === 'normal' || value === '평소 수준') return 50;
+        if (value === 'more' || value === '평소보다 많음') return 70;
+      }
+
+      return 50;
+    };
+
+    logs.forEach((log) => {
+      const answers = log.answers as Record<string, string> | null;
+      const day = parseInt(log.date.split('-')[2], 10);
+
+      // 일별 데이터 추가
+      const dayData = {
+        date: log.date,
+        day,
+        food: valueToScore(answers?.['q1_food_intake'], 'food'),
+        water: valueToScore(answers?.['q2_water_intake'], 'water'),
+        stool: valueToScore(answers?.['q4_poop'], 'stool'),
+        urine: valueToScore(answers?.['q5_urine'], 'urine'),
+        weight: null as number | null,
+      };
+
+      if (answers?.['q3_weight']) {
+        const weightNum = parseFloat(answers['q3_weight']);
+        if (!isNaN(weightNum)) {
+          dayData.weight = weightNum;
+        }
+      }
+
+      dailyData.push(dayData);
+
+      if (!answers) return;
+
+      // 식사량
+      const food = answers['q1_food_intake'];
+      if (food === 'normal' || food === '평소만큼') stats.food.normal++;
+      else if (food === 'less' || food === '평소보다 적게') stats.food.less++;
+      else if (food === 'more' || food === '평소보다 많이') stats.food.more++;
+      else if (food === 'none' || food === '안 먹음') stats.food.none++;
+
+      // 음수량
+      const water = answers['q2_water_intake'];
+      if (water === 'normal' || water === '평소 수준') stats.water.normal++;
+      else if (water === 'less' || water === '평소보다 적음') stats.water.less++;
+      else if (water === 'more' || water === '평소보다 많음') stats.water.more++;
+      else if (water === 'none' || water === '거의 안 마심') stats.water.none++;
+
+      // 체중
+      const weight = answers['q3_weight'];
+      if (weight) {
+        const weightNum = parseFloat(weight);
+        if (!isNaN(weightNum)) {
+          stats.weights.push(weightNum);
+          stats.latestWeight = weightNum;
+        }
+      }
+
+      // 배변량
+      const stool = answers['q4_poop'];
+      if (stool === 'normal' || stool === '평소만큼') stats.stool.normal++;
+      else if (stool === 'less' || stool === '평소보다 적게') stats.stool.less++;
+      else if (stool === 'more' || stool === '평소보다 많이') stats.stool.more++;
+      else if (stool === 'none' || stool === '없음') stats.stool.none++;
+      else if (stool === 'diarrhea' || stool === '설사') stats.stool.diarrhea++;
+
+      // 배뇨량
+      const urine = answers['q5_urine'];
+      if (urine === 'normal' || urine === '평소만큼') stats.urine.normal++;
+      else if (urine === 'less' || urine === '평소보다 적게') stats.urine.less++;
+      else if (urine === 'more' || urine === '평소보다 많이') stats.urine.more++;
+      else if (urine === 'none' || urine === '없음') stats.urine.none++;
+    });
+
+    // 체중 변화 계산
+    let weightChange = null;
+    if (stats.weights.length >= 2) {
+      const firstWeight = stats.weights[0];
+      const lastWeight = stats.weights[stats.weights.length - 1];
+      weightChange = lastWeight - firstWeight;
+    }
+
+    return {
+      totalDays: stats.totalDays,
+      food: stats.food,
+      water: stats.water,
+      stool: stats.stool,
+      urine: stats.urine,
+      latestWeight: stats.latestWeight,
+      weightChange,
+      avgWeight: stats.weights.length > 0
+        ? Math.round((stats.weights.reduce((a, b) => a + b, 0) / stats.weights.length) * 100) / 100
+        : null,
+      dailyData, // 일별 데이터 추가
+    };
   }
 }
