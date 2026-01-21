@@ -7,6 +7,8 @@ WORKDIR /app
 # 의존성 설치를 위해 패키지 파일 복사
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
+COPY tsconfig.json ./
 
 # 의존성 설치 (Prisma 클라이언트 생성 포함)
 RUN npm ci
@@ -30,6 +32,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
+COPY --from=builder /app/tsconfig.json ./
 
 # 서비스 포트 노출 (NestJS 기본값 3000)
 EXPOSE 3000
