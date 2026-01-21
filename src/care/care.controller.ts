@@ -26,6 +26,14 @@ export class CareController {
     return this.careService.getQuestionsForPet(petId);
   }
 
+  // petId별 진단 질문 (DynamoDB DiagnosticTable에서 가져옴)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/diag-questions')
+  async getDiagQuestions(@Param('petId') petId: string) {
+    return this.careService.getDiagQuestionsFromDynamoDB(petId);
+  }
+
   // Protected endpoints below
   @ApiBearerAuth('access-token')
   @UseGuards(CognitoAuthGuard)

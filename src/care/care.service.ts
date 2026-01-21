@@ -250,4 +250,70 @@ export class CareService {
 
     return log;
   }
+
+  // 7. 진단 질문 조회 (DynamoDB DiagnosticTable에서)
+  async getDiagQuestionsFromDynamoDB(petId: string) {
+    try {
+      const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
+      if (!tableName) {
+        this.logger.warn('AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME not configured');
+        return [];
+      }
+
+      // DynamoDB에서 해당 petId의 가장 최근 데이터 조회
+      const items = await this.dynamoDBService.query({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: petId },
+        },
+        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
+        Limit: 1,
+      });
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No diagnostic data found for petId: ${petId}`);
+        return [];
+      }
+
+      const latestItem = items[0];
+      const generatedQuestionsRaw = latestItem.generated_questions?.L;
+
+      if (!generatedQuestionsRaw || generatedQuestionsRaw.length === 0) {
+        this.logger.log(`No generated_questions found for petId: ${petId}`);
+        return [];
+      }
+
+      // DynamoDB 형식을 파싱하여 프론트엔드에서 사용할 수 있는 형식으로 변환
+      const questions = generatedQuestionsRaw.slice(0, 3).map((item: any, index: number) => {
+        const questionData = item.M;
+        const questionText = questionData?.question?.S || '';
+        const optionsData = questionData?.options?.M || {};
+
+        // options 파싱
+        const options = Object.entries(optionsData).map(([label, optionValue]: [string, any]) => {
+          const optionData = optionValue.M || {};
+          return {
+            label,
+            value: label,
+            relatedSymptom: optionData.related_symptom?.S || '',
+            signal: optionData.signal?.S || '',
+          };
+        });
+
+        return {
+          id: `diag_q${index + 1}`,
+          text: questionText,
+          type: 'single',
+          options,
+        };
+      });
+
+      this.logger.log(`Fetched ${questions.length} diag questions for petId: ${petId}`);
+      return questions;
+    } catch (error) {
+      this.logger.error(`Failed to fetch diag questions from DynamoDB: ${error}`);
+      return [];
+    }
+  }
 }
