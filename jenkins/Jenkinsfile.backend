@@ -4,15 +4,32 @@ pipeline {
     triggers {
         GenericTrigger(
             genericVariables: [
-                [key: 'ref', value: '$.ref']
+                // [수정] 기존 'ref' 삭제 -> 'workflow_run' 내부의 브랜치명 가져오기
+                // 백엔드는 'dev' 브랜치를 사용하므로 여기서 'dev'가 들어와야 합니다.
+                [key: 'BRANCH', value: '$.workflow_run.head_branch'],
+
+                // [추가] 상태 확인 (시작됨/완료됨)
+                [key: 'STATUS', value: '$.action'],
+
+                // [추가] 결과 확인 (성공/실패)
+                [key: 'RESULT', value: '$.workflow_run.conclusion']
             ],
-            causeString: 'Triggered by GitHub Push',
+            
+            // [수정] 트리거 원인 설명 변경
+            causeString: 'Triggered by GitHub Actions Completion (Backend)',
+            
+            // [확인] 백엔드용 토큰 유지
             token: 'backend-deploy-token',
+            
             printContributedVariables: true,
             printPostContent: true,
-            regexpFilterText: '$ref',
-            regexpFilterExpression: 'refs/heads/dev'  // dev 브랜치만 감지
-            // regexpFilterExpression: 'refs/heads/main'  // main 브랜치 (주석 처리)
+            
+            // [수정] 필터링 대상 변수 변경
+            regexpFilterText: '$BRANCH $STATUS $RESULT',
+            
+            // [수정] 필터링 조건 변경 (백엔드 핵심!)
+            // 해석: 브랜치는 'dev' + 상태는 'completed(완료)' + 결과는 'success(성공)'
+            regexpFilterExpression: 'dev completed success'
         )
     }
     
@@ -32,7 +49,8 @@ pipeline {
                 script {
                     echo "🚀 Deploying ${ECS_SERVICE} to ${ECS_CLUSTER}..."
                     
-                    // ECS 서비스 강제 재배포
+                    // ECS 서비스 강제 재배포 (기존 유지)
+                    // --force-new-deployment 옵션 필수!
                     sh """
                         aws ecs update-service \
                             --cluster ${ECS_CLUSTER} \
@@ -41,9 +59,7 @@ pipeline {
                             --region ${AWS_REGION}
                     """
                     
-                    // 배포 트리거 완료 (안정화 대기는 생략 - 시간 오래 걸림)
                     echo "📋 Deployment triggered. Check ECS console for status."
-                    
                     echo "✅ Backend deployment triggered successfully!"
                 }
             }
