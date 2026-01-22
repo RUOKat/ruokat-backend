@@ -112,16 +112,18 @@ export class NotificationsService {
 
   // 6. 중복 알림 체크
   async hasNotificationToday(type: string, bodyContains: string): Promise<boolean> {
+    // KST 기준 오늘 00:00:00 계산
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
-    const kstDate = new Date(now.getTime() + kstOffset);
-    const todayString = kstDate.toISOString().split('T')[0];
-    const todayStart = new Date(todayString + 'T00:00:00.000Z');
+    const kstNow = new Date(now.getTime() + kstOffset);
+    const todayString = kstNow.toISOString().split('T')[0];
+    // KST 오늘 00:00:00을 UTC로 변환
+    const todayStartKST = new Date(todayString + 'T00:00:00+09:00');
 
     const existing = await this.prisma.notification.findFirst({
       where: {
         type,
-        createdAt: { gte: todayStart },
+        createdAt: { gte: todayStartKST },
         body: { contains: bodyContains },
       },
     });

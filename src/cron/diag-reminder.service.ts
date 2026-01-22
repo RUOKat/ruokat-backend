@@ -59,15 +59,15 @@ export class DiagReminderService {
       for (const careLog of pendingLogs) {
         const { petId } = careLog;
 
-        // 2. DynamoDB에서 해당 petId의 진단 질문이 있는지 확인
+        // 2. DynamoDB에서 해당 petId + 당일 SK로 진단 질문이 있는지 확인
+        const todaySK = `DATE#${todayString}`;
         const items = await this.dynamoDBService.query({
           TableName: tableName,
-          KeyConditionExpression: 'PK = :pk',
+          KeyConditionExpression: 'PK = :pk AND SK = :sk',
           ExpressionAttributeValues: {
             ':pk': { S: petId },
+            ':sk': { S: todaySK },
           },
-          ScanIndexForward: false,
-          Limit: 1,
         });
 
         if (!items || items.length === 0) {

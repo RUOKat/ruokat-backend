@@ -130,7 +130,7 @@ export class ReportNotificationService {
 
         // 6. 푸시 알림 전송 및 DB 저장
         const title = `${pet.name}의 건강 리포트가 도착했어요 📋`;
-        const body = `${reportPreview} (petId: ${petId})`;
+        const body = `${reportPreview}[${petId}] `;
 
         await this.notificationsService.sendPushNotification(
           user.id,

@@ -311,7 +311,7 @@ export class CareService {
     return log;
   }
 
-  // 7. 진단 질문 조회 (DynamoDB DiagnosticTable에서)
+  // 7. 진단 질문 조회 (DynamoDB DiagnosticTable에서 - 당일 데이터)
   async getDiagQuestionsFromDynamoDB(petId: string) {
     try {
       const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
@@ -320,19 +320,25 @@ export class CareService {
         return [];
       }
 
-      // DynamoDB에서 해당 petId의 가장 최근 데이터 조회
+      // 오늘 날짜 (KST)
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstDate = new Date(now.getTime() + kstOffset);
+      const todayString = kstDate.toISOString().split('T')[0];
+      const todaySK = `DATE#${todayString}`;
+
+      // DynamoDB에서 해당 petId + 당일 SK로 조회
       const items = await this.dynamoDBService.query({
         TableName: tableName,
-        KeyConditionExpression: 'PK = :pk',
+        KeyConditionExpression: 'PK = :pk AND SK = :sk',
         ExpressionAttributeValues: {
           ':pk': { S: petId },
+          ':sk': { S: todaySK },
         },
-        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
-        Limit: 1,
       });
 
       if (!items || items.length === 0) {
-        this.logger.log(`No diagnostic data found for petId: ${petId}`);
+        this.logger.log(`No diagnostic data found for petId: ${petId}, date: ${todayString}`);
         return [];
       }
 
