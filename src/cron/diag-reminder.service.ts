@@ -109,7 +109,7 @@ export class DiagReminderService {
 
         // 4. 푸시 알림 전송 및 DB 저장
         const title = '진단 설문에 참여해주세요 🐱';
-        const body = `${pet.name}의 맞춤 진단 질문이 준비되었어요!`;
+        const body = `${pet.name}의 맞춤 진단 질문이 준비되었어요! [${petId}]`;
 
         await this.notificationsService.sendPushNotification(
           user.id,

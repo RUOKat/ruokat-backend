@@ -14,6 +14,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AwsModule,
     NotificationsModule,
   ],
-  providers: [DiagReminderService, ReportNotificationService, FgsNotificationService],
+  providers: [
+    DiagReminderService,
+    ReportNotificationService,
+    // FgsNotificationService
+  ],
 })
 export class CronModule { }
