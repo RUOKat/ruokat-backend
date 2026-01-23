@@ -8,6 +8,7 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
+import { MetricsInterceptor } from './metrics/metrics.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,7 +24,9 @@ async function bootstrap() {
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['metrics'],
+  });
 
   // Swagger 설정
   const config = new DocumentBuilder()
@@ -55,7 +58,10 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(new ResponseTransformInterceptor());
+  app.useGlobalInterceptors(
+    app.get(MetricsInterceptor),
+    new ResponseTransformInterceptor(),
+  );
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // 포트 설정
@@ -68,6 +74,7 @@ async function bootstrap() {
   console.log(`==========================================================`);
   console.log(`🚀 Server running at: ${serverUrl}`);
   console.log(`📘 Swagger UI:      ${serverUrl}/swagger`);
+  console.log(`📊 Prometheus:      ${serverUrl}/metrics`);
   console.log(`📡 CORS Enabled:    Origin=true, Credentials=true`);
   console.log(`==========================================================`);
 }

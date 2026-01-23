@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CareModule } from './care/care.module';
 import { AdminModule } from './admin/admin.module';
 import { CronModule } from './cron/cron.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CronModule } from './cron/cron.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    MetricsModule,
     PrismaModule,
     AuthModule,
     UsersModule,
