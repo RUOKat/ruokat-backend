@@ -20,9 +20,17 @@ export interface ApiResponse<T> {
 @Injectable()
 export class ResponseTransformInterceptor implements NestInterceptor {
   intercept(
-    _context: ExecutionContext,
+    context: ExecutionContext,
     next: CallHandler,
-  ): Observable<ApiResponse<unknown>> {
+  ): Observable<ApiResponse<unknown> | unknown> {
+    const request = context.switchToHttp().getRequest();
+    const { url } = request;
+
+    // /metrics 경로는 변환하지 않음
+    if (url === '/metrics') {
+      return next.handle();
+    }
+
     return next.handle().pipe(
       map((data) => {
         // If already formatted, return as is
