@@ -26,27 +26,25 @@ export class DiagReminderService {
       const kstDate = new Date(now.getTime() + kstOffset);
       const todayString = kstDate.toISOString().split('T')[0];
 
-      // 1. 당일 careLog 중 answers는 있고 diagAnswers가 없는 데이터 조회
+      // 1. 당일 careLog 중 answers는 있고 diagAnswers가 없고, diagNotificationSentAt이 null인 데이터 조회
       const careLogs = await this.prisma.careLog.findMany({
         where: {
           date: todayString,
+          answers: { not: null },
+          diagAnswers: null,
+          diagNotificationSentAt: null, // 아직 알림을 보내지 않은 것만
         },
         select: {
           petId: true,
-          answers: true,
-          diagAnswers: true,
         },
       });
 
-      // answers가 있고 diagAnswers가 null인 것만 필터링
-      const pendingLogs = careLogs.filter(log => log.answers !== null && log.diagAnswers === null);
-
-      if (pendingLogs.length === 0) {
+      if (careLogs.length === 0) {
         this.logger.log('No pending diag reminders found');
         return;
       }
 
-      this.logger.log(`Found ${pendingLogs.length} care logs without diag answers`);
+      this.logger.log(`Found ${careLogs.length} care logs without diag answers`);
 
       const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
       if (!tableName) {
@@ -56,7 +54,7 @@ export class DiagReminderService {
 
       let sentCount = 0;
 
-      for (const careLog of pendingLogs) {
+      for (const careLog of careLogs) {
         const { petId } = careLog;
 
         // 2. DynamoDB에서 해당 petId + 당일 SK로 진단 질문이 있는지 확인
@@ -79,23 +77,6 @@ export class DiagReminderService {
 
         if (!generatedQuestions || generatedQuestions.length === 0) {
           continue; // 질문이 없으면 스킵
-        }
-
-        // 이미 알림을 보냈는지 확인 (CareLog의 diagNotificationSentAt 체크)
-        const careLogWithNotification = await this.prisma.careLog.findUnique({
-          where: {
-            petId_date: {
-              petId,
-              date: todayString,
-            },
-          },
-          select: {
-            diagNotificationSentAt: true,
-          },
-        });
-
-        if (careLogWithNotification?.diagNotificationSentAt) {
-          continue; // 이미 오늘 알림을 보냈으면 스킵
         }
 
         // 3. 해당 pet의 user 찾기

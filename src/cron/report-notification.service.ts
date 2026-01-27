@@ -26,29 +26,25 @@ export class ReportNotificationService {
       const kstDate = new Date(now.getTime() + kstOffset);
       const todayString = kstDate.toISOString().split('T')[0];
 
-      // 1. 당일 careLog 중 diagAnswers가 있는 (완료된) 데이터 조회
+      // 1. 당일 careLog 중 answers와 diagAnswers가 모두 있고, reportNotificationSentAt이 null인 데이터 조회
       const careLogs = await this.prisma.careLog.findMany({
         where: {
           date: todayString,
+          answers: { not: null },
+          diagAnswers: { not: null },
+          reportNotificationSentAt: null, // 아직 알림을 보내지 않은 것만
         },
         select: {
           petId: true,
-          answers: true,
-          diagAnswers: true,
         },
       });
 
-      // answers와 diagAnswers 둘 다 있는 것만 필터링 (완전히 완료된 것)
-      const completedLogs = careLogs.filter(
-        log => log.answers !== null && log.diagAnswers !== null
-      );
-
-      if (completedLogs.length === 0) {
+      if (careLogs.length === 0) {
         this.logger.log('No completed care logs found');
         return;
       }
 
-      this.logger.log(`Found ${completedLogs.length} completed care logs`);
+      this.logger.log(`Found ${careLogs.length} completed care logs`);
 
       const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
       if (!tableName) {
@@ -58,27 +54,10 @@ export class ReportNotificationService {
 
       let sentCount = 0;
 
-      for (const careLog of completedLogs) {
+      for (const careLog of careLogs) {
         const { petId } = careLog;
 
-        // 2. 이미 알림을 보냈는지 확인 (CareLog의 reportNotificationSentAt 체크)
-        const careLogWithNotification = await this.prisma.careLog.findUnique({
-          where: {
-            petId_date: {
-              petId,
-              date: todayString,
-            },
-          },
-          select: {
-            reportNotificationSentAt: true,
-          },
-        });
-
-        if (careLogWithNotification?.reportNotificationSentAt) {
-          continue; // 이미 오늘 알림을 보냈으면 스킵
-        }
-
-        // 3. DynamoDB에서 해당 petId의 final_report 확인
+        // 2. DynamoDB에서 해당 petId의 final_report 확인
         const items = await this.dynamoDBService.query({
           TableName: tableName,
           KeyConditionExpression: 'PK = :pk',
@@ -100,7 +79,7 @@ export class ReportNotificationService {
           continue; // final_report가 없으면 스킵
         }
 
-        // 4. 해당 pet의 user 찾기
+        // 3. 해당 pet의 user 찾기
         const pet = await this.prisma.pet.findUnique({
           where: { id: petId },
           include: {
@@ -120,7 +99,7 @@ export class ReportNotificationService {
           continue;
         }
 
-        // 5. 리포트 앞부분 추출 (마크다운 제거 후 최대 50자)
+        // 4. 리포트 앞부분 추출 (마크다운 제거 후 최대 50자)
         const cleanReport = finalReport
           .replace(/#{1,6}\s*/g, '') // 헤더 제거
           .replace(/\*\*([^*]+)\*\*/g, '$1') // 볼드 제거
@@ -136,7 +115,7 @@ export class ReportNotificationService {
           ? cleanReport.substring(0, 50) + '...'
           : cleanReport;
 
-        // 6. 푸시 알림 전송 및 DB 저장
+        // 5. 푸시 알림 전송 및 DB 저장
         const title = `${pet.name}의 건강 리포트가 도착했어요 📋`;
         const body = reportPreview;
 
@@ -153,7 +132,7 @@ export class ReportNotificationService {
           },
         );
 
-        // 7. CareLog에 알림 전송 시간 기록
+        // 6. CareLog에 알림 전송 시간 기록
         await this.prisma.careLog.update({
           where: {
             petId_date: {
