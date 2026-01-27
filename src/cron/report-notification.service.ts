@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { DynamoDBService } from '../aws/dynamodb.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ReportNotificationService {
@@ -30,8 +31,10 @@ export class ReportNotificationService {
       const careLogs = await this.prisma.careLog.findMany({
         where: {
           date: todayString,
-          answers: { not: null },
-          diagAnswers: { not: null },
+          NOT: [
+            { answers: undefined },
+            { diagAnswers: undefined },
+          ],
           reportNotificationSentAt: null, // 아직 알림을 보내지 않은 것만
         },
         select: {
