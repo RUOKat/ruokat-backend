@@ -81,9 +81,20 @@ export class DiagReminderService {
           continue; // 질문이 없으면 스킵
         }
 
-        // 이미 알림을 보냈는지 확인 (오늘 날짜로)
-        const alreadySent = await this.notificationsService.hasNotificationToday('DIAG_REMINDER', petId);
-        if (alreadySent) {
+        // 이미 알림을 보냈는지 확인 (CareLog의 diagNotificationSentAt 체크)
+        const careLogWithNotification = await this.prisma.careLog.findUnique({
+          where: {
+            petId_date: {
+              petId,
+              date: todayString,
+            },
+          },
+          select: {
+            diagNotificationSentAt: true,
+          },
+        });
+
+        if (careLogWithNotification?.diagNotificationSentAt) {
           continue; // 이미 오늘 알림을 보냈으면 스킵
         }
 
@@ -109,7 +120,7 @@ export class DiagReminderService {
 
         // 4. 푸시 알림 전송 및 DB 저장
         const title = '진단 설문에 참여해주세요 🐱';
-        const body = `${pet.name}의 맞춤 진단 질문이 준비되었어요! [${petId}]`;
+        const body = `${pet.name}의 맞춤 진단 질문이 준비되었어요!`;
 
         await this.notificationsService.sendPushNotification(
           user.id,
@@ -123,6 +134,19 @@ export class DiagReminderService {
             petName: pet.name,
           },
         );
+
+        // 5. CareLog에 알림 전송 시간 기록
+        await this.prisma.careLog.update({
+          where: {
+            petId_date: {
+              petId,
+              date: todayString,
+            },
+          },
+          data: {
+            diagNotificationSentAt: new Date(),
+          },
+        });
 
         this.logger.log(`Sent diag reminder for pet ${pet.name} (${petId})`);
         sentCount++;

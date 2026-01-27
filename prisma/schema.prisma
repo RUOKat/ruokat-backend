@@ -23,6 +23,7 @@ model User {
   alarmConfig   Json?
   pushToken     String?
   deviceInfo    Json?
+  cameraEnabled Boolean @default(false) // 카메라 사용 설정
 
   // [4. 시스템 관리]
   createdAt DateTime  @default(now())
@@ -61,7 +62,12 @@ model CareLog {
   diagQuestions Json? // 추가 진단 질문 및 답변 저장용 (선택 사항)
   diagAnswers   Json? // 추가 진단 질문 및 답변 저장용 (선택 사항)
   reports       Json? // 진단 결과 리포트 저장용 (선택 사항)
-  pet           Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  // 알림 전송 시간 기록
+  diagNotificationSentAt   DateTime? // 진단 알림 전송 시간
+  reportNotificationSentAt DateTime? // 리포트 알림 전송 시간
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   // 한 고양이가 하루에 중복 체크인 방지 (선택 사항)
   @@unique([petId, date])
@@ -187,4 +193,19 @@ model Pet {
 
   // [NEW] 케어 로그 관계 설정
   careLogs CareLog[]
+}
+
+// 기관/의사 테이블
+model MedicalProvider {
+  id        String  @id @default(uuid())
+  userId    String?
+  type      String // "hospital", "clinic", "doctor" 등
+  name      String // 기관명 또는 의사명
+  address   String? // 주소
+  phone     String? // 연락처
+  specialty String? // 전문 분야
+  notes     String? // 메모
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -25,7 +25,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly expoService: ExpoService,
-  ) {}
+  ) { }
 
   // [기존 유지] 푸시 토큰 업데이트
   async updatePushToken(sub: string, dto: UpdatePushTokenDto) {
@@ -34,7 +34,7 @@ export class UsersService {
     }
     // sub로 유저를 찾고 업데이트 (Prisma가 알아서 처리)
     const user = await this.prisma.user.findUnique({ where: { sub } });
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -65,7 +65,7 @@ export class UsersService {
     return {
       ...user,
       // DB: phoneNumber -> Front: phone
-      phone: user.phoneNumber, 
+      phone: user.phoneNumber,
       // DB: alarmConfig가 null이면 기본값 제공
       alarmConfig: user.alarmConfig ?? { priority: 'important' },
     };
@@ -134,7 +134,7 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    
+
     return {
       enabled: user.alarmsEnabled,
       config: user.alarmConfig,
@@ -182,6 +182,40 @@ export class UsersService {
     return {
       enabled: updatedUser.alarmsEnabled,
       config: updatedUser.alarmConfig,
+    };
+  }
+
+  // [NEW] 카메라 설정 조회
+  async getCameraSettings(sub: string): Promise<{ cameraEnabled: boolean }> {
+    const user = await this.prisma.user.findUnique({ where: { sub } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      cameraEnabled: user.cameraEnabled,
+    };
+  }
+
+  // [NEW] 카메라 설정 수정
+  async updateCameraSettings(
+    sub: string,
+    cameraEnabled: boolean,
+  ): Promise<{ cameraEnabled: boolean }> {
+    const user = await this.prisma.user.findUnique({ where: { sub } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        cameraEnabled,
+      },
+    });
+
+    return {
+      cameraEnabled: updatedUser.cameraEnabled,
     };
   }
 

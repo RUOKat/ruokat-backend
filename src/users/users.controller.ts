@@ -16,13 +16,14 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UpdateAlarmSettingsDto } from './dto/update-alarm-settings.dto';
 import { UpdatePushTokenDto } from './dto/update-push-token.dto';
+import { UpdateCameraSettingsDto } from './dto/update-camera-settings.dto';
 
 @ApiBearerAuth('access-token')
 @ApiTags('users')
 @UseGuards(CognitoAuthGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Get('me')
   @ApiOperation({ summary: 'Get current user information' })
@@ -67,6 +68,21 @@ export class UsersController {
     @Body() body: UpdatePushTokenDto,
   ) {
     return this.usersService.updatePushToken(user.sub, body);
+  }
+
+  @Get('me/camera-settings')
+  @ApiOperation({ summary: `Get current user's camera settings` })
+  async getMyCameraSettings(@CurrentUser() user: RequestUser) {
+    return this.usersService.getCameraSettings(user.sub);
+  }
+
+  @Put('me/camera-settings')
+  @ApiOperation({ summary: `Update current user's camera settings` })
+  async updateMyCameraSettings(
+    @CurrentUser() user: RequestUser,
+    @Body() body: UpdateCameraSettingsDto,
+  ) {
+    return this.usersService.updateCameraSettings(user.sub, body.cameraEnabled);
   }
 }
 

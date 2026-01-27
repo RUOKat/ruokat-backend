@@ -17,7 +17,7 @@ export class UpdateUserProfileDto {
   @ApiProperty({ description: '연락처 (예: 010-0000-0000)', required: false })
   @IsOptional()
   @IsString()
-  phone?: string; 
+  phone?: string;
   // 💡 주의: 프론트는 'phone'으로 보내고, DB는 'phoneNumber'입니다. 서비스에서 연결해줘야 함.
 
   @ApiProperty({ description: '주소 (서울시 강남구...)', required: false })
@@ -41,4 +41,10 @@ export class UpdateUserProfileDto {
   @IsOptional()
   @IsObject() // JSON 객체 허용
   alarmConfig?: any; // 👈 프론트의 'alertPriority' 등을 저장할 곳
+
+  // 5. 카메라 설정
+  @ApiProperty({ description: '카메라 사용 설정', required: false })
+  @IsOptional()
+  @IsBoolean()
+  cameraEnabled?: boolean;
 }

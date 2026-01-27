@@ -61,13 +61,21 @@ export class ReportNotificationService {
       for (const careLog of completedLogs) {
         const { petId } = careLog;
 
-        // 2. 이미 알림을 보냈는지 확인 (오늘 날짜로)
-        const alreadySent = await this.notificationsService.hasNotificationToday(
-          'REPORT_READY',
-          petId
-        );
-        if (alreadySent) {
-          continue;
+        // 2. 이미 알림을 보냈는지 확인 (CareLog의 reportNotificationSentAt 체크)
+        const careLogWithNotification = await this.prisma.careLog.findUnique({
+          where: {
+            petId_date: {
+              petId,
+              date: todayString,
+            },
+          },
+          select: {
+            reportNotificationSentAt: true,
+          },
+        });
+
+        if (careLogWithNotification?.reportNotificationSentAt) {
+          continue; // 이미 오늘 알림을 보냈으면 스킵
         }
 
         // 3. DynamoDB에서 해당 petId의 final_report 확인
@@ -130,7 +138,7 @@ export class ReportNotificationService {
 
         // 6. 푸시 알림 전송 및 DB 저장
         const title = `${pet.name}의 건강 리포트가 도착했어요 📋`;
-        const body = `${reportPreview}[${petId}] `;
+        const body = reportPreview;
 
         await this.notificationsService.sendPushNotification(
           user.id,
@@ -144,6 +152,19 @@ export class ReportNotificationService {
             petName: pet.name,
           },
         );
+
+        // 7. CareLog에 알림 전송 시간 기록
+        await this.prisma.careLog.update({
+          where: {
+            petId_date: {
+              petId,
+              date: todayString,
+            },
+          },
+          data: {
+            reportNotificationSentAt: new Date(),
+          },
+        });
 
         this.logger.log(`Sent report notification for pet ${pet.name} (${petId})`);
         sentCount++;
