@@ -26,8 +26,13 @@ export class FgsNotificationService {
         return;
       }
 
-      // 모든 pet 조회
+      // 모든 pet 조회 (카메라 설정이 켜진 유저만)
       const pets = await this.prisma.pet.findMany({
+        where: {
+          user: {
+            cameraEnabled: true, // 카메라 설정이 켜진 유저만
+          },
+        },
         include: {
           user: true,
         },
