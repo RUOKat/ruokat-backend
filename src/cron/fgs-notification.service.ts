@@ -65,7 +65,8 @@ export class FgsNotificationService {
 
         const latestItem = items[0];
         const sk = latestItem.SK?.S || '';
-        const fgsScore = latestItem.fgsScore?.S || '';
+        // fgsScore는 숫자(N) 또는 문자열(S) 타입일 수 있음
+        const fgsScore = latestItem.fgsScore?.N || latestItem.fgsScore?.S || '';
         const explanation = latestItem.explanation?.S || '';
 
         if (!explanation) {
