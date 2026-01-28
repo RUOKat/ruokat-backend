@@ -75,6 +75,47 @@ export class PetsService {
     });
   }
 
+  // Admin용: 전체 고양이 조회
+  async findAll() {
+    return this.prisma.pet.findMany({
+      where: { deletedAt: null },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Admin용: 고양이 상세 조회
+  async findOne(petId: string) {
+    const pet = await this.prisma.pet.findFirst({
+      where: { id: petId, deletedAt: null },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+            address: true,
+          },
+        },
+        careLogs: {
+          orderBy: { date: 'desc' },
+          take: 10, // 최근 10개만
+        },
+      },
+    });
+    if (!pet) throw new NotFoundException('Pet not found');
+    return pet;
+  }
+
   async update(userId: string, petId: string, dto: UpdateCatProfileDto) {
     const pet = await this.prisma.pet.findFirst({
       where: { id: petId, userId, deletedAt: null },

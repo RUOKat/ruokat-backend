@@ -32,12 +32,12 @@ export class PetsController {
   constructor(
     private readonly petsService: PetsService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
   @Post()
-  @ApiOperation({ 
-    summary: `Create a pet's profile`, 
-    description: '고양이 프로필을 생성합니다. (PostgreSQL 저장 + AI 분석용 DynamoDB 동기화)' 
+  @ApiOperation({
+    summary: `Create a pet's profile`,
+    description: '고양이 프로필을 생성합니다. (PostgreSQL 저장 + AI 분석용 DynamoDB 동기화)'
   })
   async create(
     @CurrentUser() user: RequestUser,
@@ -61,7 +61,7 @@ export class PetsController {
   }
 
   @Put(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: `Update a pet's profile`,
     description: '고양이 프로필을 수정합니다. 수정 이력은 AI 분석을 위해 DynamoDB에 기록됩니다.'
   })
@@ -88,5 +88,24 @@ export class PetsController {
       throw new NotFoundException('User not found');
     }
     return this.petsService.softDelete(exUser.id, id);
+  }
+}
+
+// Admin 전용 컨트롤러 (인증 없음)
+@ApiTags('admin')
+@Controller('admin/pets')
+export class AdminPetsController {
+  constructor(private readonly petsService: PetsService) { }
+
+  @Get()
+  @ApiOperation({ summary: '전체 고양이 목록 조회 (Admin)' })
+  async findAllPets() {
+    return this.petsService.findAll();
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: '고양이 상세 조회 (Admin)' })
+  async findOnePet(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.petsService.findOne(id);
   }
 }

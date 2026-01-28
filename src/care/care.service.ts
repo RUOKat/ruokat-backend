@@ -623,4 +623,50 @@ export class CareService {
       return [];
     }
   }
+
+  // Admin용: 전체 케어 로그 조회
+  async getAllCareLogs() {
+    return this.prisma.careLog.findMany({
+      include: {
+        pet: {
+          select: {
+            id: true,
+            name: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { date: 'desc' },
+      take: 100, // 최근 100개만
+    });
+  }
+
+  // Admin용: 특정 고양이의 케어 로그 조회
+  async getCareLogsByPet(petId: string) {
+    return this.prisma.careLog.findMany({
+      where: { petId },
+      include: {
+        pet: {
+          select: {
+            id: true,
+            name: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { date: 'desc' },
+    });
+  }
 }

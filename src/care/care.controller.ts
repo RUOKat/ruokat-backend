@@ -94,3 +94,20 @@ export class CareController {
     return this.careService.getDailyReports(petId);
   }
 }
+
+// Admin 전용 컨트롤러 (인증 없음)
+@ApiTags('admin')
+@Controller('admin/care')
+export class AdminCareController {
+  constructor(private readonly careService: CareService) { }
+
+  @Get('logs')
+  async getAllCareLogs() {
+    return this.careService.getAllCareLogs();
+  }
+
+  @Get('logs/:petId')
+  async getCareLogsByPet(@Param('petId') petId: string) {
+    return this.careService.getCareLogsByPet(petId);
+  }
+}

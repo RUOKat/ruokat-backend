@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { CareController } from './care.controller';
+import { CareController, AdminCareController } from './care.controller';
 import { CareService } from './care.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -11,7 +11,7 @@ import { AwsModule } from '../aws/aws.module';
     AuthModule,
     AwsModule,
   ],
-  controllers: [CareController],
+  controllers: [CareController, AdminCareController],
   providers: [CareService],
 })
 export class CareModule { }
