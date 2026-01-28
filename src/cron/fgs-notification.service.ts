@@ -15,7 +15,7 @@ export class FgsNotificationService {
   ) { }
 
   // 1분마다 실행
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron(CronExpression.EVERY_MINUTE)
   async handleFgsNotification() {
     this.logger.log('Running FGS notification cron job...');
 

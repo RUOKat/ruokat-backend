@@ -7,6 +7,7 @@ import {
   QueryCommandInput,
   UpdateItemCommand,
   UpdateItemCommandInput,
+  DeleteItemCommand,
   AttributeValue,
 } from '@aws-sdk/client-dynamodb';
 
@@ -86,6 +87,27 @@ export class DynamoDBService {
       return result;
     } catch (error) {
       this.logger.error(`[UPDATE] Failed - Error: ${error}`);
+      throw error;
+    }
+  }
+
+  async deleteItem(
+    tableName: string,
+    key: Record<string, AttributeValue>,
+  ) {
+    this.logger.log(`[DELETE] Table: ${tableName}, Key: ${JSON.stringify(key)}`);
+
+    const command = new DeleteItemCommand({
+      TableName: tableName,
+      Key: key,
+    });
+
+    try {
+      const result = await this.awsService.dynamodb.send(command);
+      this.logger.log(`[DELETE] Success`);
+      return result;
+    } catch (error) {
+      this.logger.error(`[DELETE] Failed - Error: ${error}`);
       throw error;
     }
   }

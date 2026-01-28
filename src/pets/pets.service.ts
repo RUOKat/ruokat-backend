@@ -14,12 +14,22 @@ export interface PetcamImage {
   url: string;
   lastModified: Date;
   size: number;
+  fgsScore?: number;
+  fgsExplanation?: string;
+}
+
+interface FgsResult {
+  imageKey: string;
+  fgsScore: number;
+  explanation: string;
+  date: string;
 }
 
 @Injectable()
 export class PetsService {
   private readonly histTableName: string;
   private readonly petcamBucketName: string;
+  private readonly fgsResultTableName: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -29,6 +39,7 @@ export class PetsService {
   ) {
     this.histTableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_HIST_TABLE_NAME');
     this.petcamBucketName = this.configService.get<string>('AWS_PETCAM_BUCKET_NAME') || 'ruokat-image-bucket';
+    this.fgsResultTableName = this.configService.get<string>('AWS_DYNAMODB_FGS_RESULT_TABLE_NAME') || 'FGSResultTable';
   }
 
   async create(userId: string, dto: CreateCatProfileDto) {
@@ -198,10 +209,21 @@ export class PetsService {
 
   async getPetcamImages(petId: string, limit: number = 50): Promise<PetcamImage[]> {
     try {
-      // S3 us-east-1에서 해당 petId prefix로 이미지 목록 조회
+      // 1. FGS 결과 조회 (실패해도 이미지는 보여줘야 함)
+      let fgsMap = new Map<string, FgsResult>();
+      try {
+        const fgsResults = await this.getFgsResultsForPet(petId);
+        fgsResults.forEach(fgs => {
+          fgsMap.set(fgs.imageKey, fgs);
+        });
+      } catch (fgsError) {
+        console.warn(`[FGS Warning] Failed to get FGS results, continuing without FGS data:`, fgsError);
+      }
+
+      // 2. S3 us-east-1에서 해당 petId prefix로 이미지 목록 조회
       const result = await this.s3Service.listObjectsUsEast1(
         this.petcamBucketName,
-        `${petId}/`,
+        `CAT#${petId}/`,
         limit
       );
 
@@ -233,12 +255,18 @@ export class PetsService {
           3600
         );
 
-        return signedUrls.map((item, index) => ({
-          key: item.key,
-          url: item.url,
-          lastModified: sortedContents[index].LastModified || new Date(),
-          size: sortedContents[index].Size || 0,
-        }));
+        return signedUrls.map((item, index) => {
+          const fileName = item.key.split('/').pop() || item.key;
+          const fgs = fgsMap.get(fileName);
+          return {
+            key: item.key,
+            url: item.url,
+            lastModified: sortedContents[index].LastModified || new Date(),
+            size: sortedContents[index].Size || 0,
+            fgsScore: fgs?.fgsScore,
+            fgsExplanation: fgs?.explanation,
+          };
+        });
       }
 
       // 최신순 정렬
@@ -257,15 +285,119 @@ export class PetsService {
         3600
       );
 
-      return signedUrls.map((item, index) => ({
-        key: item.key,
-        url: item.url,
-        lastModified: sortedContents[index].LastModified || new Date(),
-        size: sortedContents[index].Size || 0,
-      }));
+      return signedUrls.map((item, index) => {
+        const fileName = item.key.split('/').pop() || item.key;
+        const fgs = fgsMap.get(fileName);
+        return {
+          key: item.key,
+          url: item.url,
+          lastModified: sortedContents[index].LastModified || new Date(),
+          size: sortedContents[index].Size || 0,
+          fgsScore: fgs?.fgsScore,
+          fgsExplanation: fgs?.explanation,
+        };
+      });
     } catch (error) {
       console.error(`[S3 Error] Failed to get petcam images for ${petId}:`, error);
       return [];
+    }
+  }
+
+  private async getFgsResultsForPet(petId: string): Promise<FgsResult[]> {
+    try {
+      const items = await this.dynamoDBService.query({
+        TableName: this.fgsResultTableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: `CAT#${petId}` },
+        },
+        ScanIndexForward: false, // 최신순
+      });
+
+      if (!items || items.length === 0) {
+        return [];
+      }
+
+      return items.map(item => ({
+        imageKey: item.imageKey?.S || '',
+        fgsScore: parseInt(item.fgsScore?.N || item.fgsScore?.S || '0', 10),
+        explanation: item.explanation?.S || '',
+        date: item.SK?.S?.replace('DATE#', '') || '',
+      }));
+    } catch (error) {
+      console.error(`[DynamoDB Error] Failed to get FGS results for ${petId}:`, error);
+      return [];
+    }
+  }
+
+  async deletePetcamImage(petId: string, imageKey: string): Promise<{ deleted: boolean }> {
+    try {
+      // 1. S3에서 이미지 삭제
+      await this.s3Service.deleteObjectUsEast1(this.petcamBucketName, imageKey);
+
+      // 2. DynamoDB에서 해당 이미지의 FGS 데이터 삭제
+      const fileName = imageKey.split('/').pop() || imageKey;
+      await this.deleteFgsResultForImage(petId, fileName);
+
+      return { deleted: true };
+    } catch (error) {
+      console.error(`[S3 Error] Failed to delete petcam image ${imageKey}:`, error);
+      throw error;
+    }
+  }
+
+  private async deleteFgsResultForImage(petId: string, imageFileName: string): Promise<void> {
+    try {
+      // imageKey로 해당 FGS 레코드 찾기
+      const items = await this.dynamoDBService.query({
+        TableName: this.fgsResultTableName,
+        KeyConditionExpression: 'PK = :pk',
+        FilterExpression: 'imageKey = :imageKey',
+        ExpressionAttributeValues: {
+          ':pk': { S: `CAT#${petId}` },
+          ':imageKey': { S: imageFileName },
+        },
+      });
+
+      if (!items || items.length === 0) {
+        console.log(`[FGS] No FGS record found for image: ${imageFileName}`);
+        return;
+      }
+
+      // 찾은 레코드 삭제
+      for (const item of items) {
+        const sk = item.SK?.S;
+        if (sk) {
+          await this.dynamoDBService.deleteItem(this.fgsResultTableName, {
+            PK: { S: `CAT#${petId}` },
+            SK: { S: sk },
+          });
+          console.log(`[FGS] Deleted FGS record for image: ${imageFileName}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`[FGS Warning] Failed to delete FGS record for ${imageFileName}:`, error);
+      // FGS 삭제 실패해도 이미지 삭제는 성공으로 처리
+    }
+  }
+
+  async uploadPetcamImage(petId: string, file: Buffer): Promise<{ key: string; url: string }> {
+    try {
+      // 파일명 생성: petId_timestamp_local.jpg
+      const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+      const fileName = `${petId}_${timestamp}_local.jpg`;
+      const key = `${fileName}`;
+
+      // S3에 업로드
+      await this.s3Service.uploadFileUsEast1(this.petcamBucketName, key, file, 'image/jpeg');
+
+      // signed URL 생성
+      const url = await this.s3Service.getSignedUrlUsEast1(this.petcamBucketName, key, 3600);
+
+      return { key, url };
+    } catch (error) {
+      console.error(`[S3 Error] Failed to upload petcam image for ${petId}:`, error);
+      throw error;
     }
   }
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AwsService } from './aws.service';
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
@@ -85,5 +85,23 @@ export class S3Service {
       })
     );
     return urls;
+  }
+
+  async deleteObjectUsEast1(bucket: string, key: string) {
+    const command = new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+    return this.s3UsEast1.send(command);
+  }
+
+  async uploadFileUsEast1(bucket: string, key: string, body: Buffer, contentType?: string) {
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType || 'image/jpeg',
+    });
+    return this.s3UsEast1.send(command);
   }
 }

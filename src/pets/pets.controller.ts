@@ -9,7 +9,10 @@ import {
   Post,
   Put,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PetsService } from './pets.service';
 import {
   CreateCatProfileDto,
@@ -20,9 +23,8 @@ import {
   CurrentUser,
   RequestUser,
 } from '../common/decorators/current-user.decorator';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '@/auth/auth.service';
-import e from 'express';
 
 @ApiBearerAuth('access-token')
 @ApiTags('pets')
@@ -104,6 +106,45 @@ export class PetsController {
       throw new NotFoundException('User not found');
     }
     return this.petsService.getPetcamImages(id);
+  }
+
+  @Delete(':id/petcam-images')
+  @ApiOperation({
+    summary: '펫캠 이미지 삭제',
+    description: 'S3 버킷에서 해당 이미지와 DynamoDB의 FGS 데이터를 삭제합니다.'
+  })
+  async deletePetcamImage(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body('imageKey') imageKey: string,
+  ) {
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.deletePetcamImage(id, imageKey);
+  }
+
+  @Post(':id/petcam-images')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: '펫캠 이미지 업로드',
+    description: '펫캠 이미지를 S3 버킷에 업로드합니다. 파일명: petId_timestamp_local.jpg'
+  })
+  async uploadPetcamImage(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+    return this.petsService.uploadPetcamImage(id, file.buffer);
   }
 }
 
