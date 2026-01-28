@@ -722,4 +722,157 @@ export class CareService {
       orderBy: { date: 'desc' },
     });
   }
+
+  // 10. 건강 컨텍스트 조회 (UpdatedContextTable에서 - 위험도, 태그, 요약)
+  async getHealthContext(petId: string) {
+    try {
+      const tableName = process.env.AWS_DYNAMODB_UPDATED_TABLE_NAME;
+      if (!tableName) {
+        this.logger.warn('AWS_DYNAMODB_UPDATED_TABLE_NAME not configured');
+        return null;
+      }
+
+      // DynamoDB에서 해당 petId의 가장 최근 데이터 조회
+      const items = await this.dynamoDBService.query({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: petId },
+        },
+        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
+        Limit: 1,
+      });
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No health context found for petId: ${petId}`);
+        return null;
+      }
+
+      const latestItem = items[0];
+
+      // 디버깅용 로그
+      this.logger.log(`Health context raw data: ${JSON.stringify(latestItem)}`);
+      this.logger.log(`risk_level raw: ${JSON.stringify(latestItem.risk_level)}`);
+
+      // risk_tags 파싱
+      const riskTagsRaw = latestItem.risk_tags?.L || [];
+      const riskTags = riskTagsRaw.map((tag: any) => tag.S).filter(Boolean);
+
+      // question_bank 파싱 (오늘의 관찰 포인트용)
+      const questionBankRaw = latestItem.question_bank?.L || [];
+      const questionBank = questionBankRaw.map((q: any) => q.S).filter(Boolean);
+
+      // 랜덤으로 3개 선택 (오늘의 관찰 포인트)
+      const shuffled = [...questionBank].sort(() => 0.5 - Math.random());
+      const todayObservations = shuffled.slice(0, 3);
+
+      return {
+        riskLevel: latestItem.risk_level?.S || 'Unknown',
+        riskTags,
+        summary: latestItem.summary?.S?.replace(/^"|"$/g, '') || '',
+        status: latestItem.status?.S || '',
+        updatedAt: latestItem.SK?.S || '',
+        todayObservations,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch health context from DynamoDB: ${error}`);
+      return null;
+    }
+  }
+
+  // 11. 건강 트렌드 조회 (DiagnosticTable에서 - 진단 답변 기반 이상 증상 추이)
+  async getHealthTrend(petId: string) {
+    try {
+      const tableName = process.env.AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME;
+      if (!tableName) {
+        this.logger.warn('AWS_DYNAMODB_DIAGNOSTIC_TABLE_NAME not configured');
+        return null;
+      }
+
+      // DynamoDB에서 해당 petId의 최근 30일 데이터 조회
+      const items = await this.dynamoDBService.query({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': { S: petId },
+        },
+        ScanIndexForward: false, // SK 내림차순 (최신 먼저)
+        Limit: 30,
+      });
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No diagnostic data found for petId: ${petId}`);
+        return { trendData: [], healthScore: null, recentSymptoms: [] };
+      }
+
+      // 각 날짜별 이상 증상 비율 계산
+      const trendData: { date: string; abnormalCount: number; totalCount: number; score: number }[] = [];
+      const allSymptoms: { symptom: string; date: string; signal: string }[] = [];
+
+      items.forEach((item: any) => {
+        const sk = item.SK?.S || '';
+        const dateMatch = sk.match(/DATE#(\d{4}-\d{2}-\d{2})/);
+        const date = dateMatch ? dateMatch[1] : '';
+
+        const answersRaw = item.answers?.L || [];
+        const generatedQuestionsRaw = item.generated_questions?.L || [];
+
+        let abnormalCount = 0;
+        let totalCount = answersRaw.length;
+
+        // answers에서 "예" 응답 카운트 (이상 증상)
+        answersRaw.forEach((answer: any, index: number) => {
+          const answerData = answer.M || {};
+          const answerText = answerData.a?.S || '';
+          const questionText = answerData.q?.S || '';
+
+          // generated_questions에서 해당 질문의 signal 찾기
+          if (generatedQuestionsRaw[index]) {
+            const questionData = generatedQuestionsRaw[index].M || {};
+            const options = questionData.options?.M || {};
+            const selectedOption = options[answerText]?.M || {};
+            const signal = selectedOption.signal?.S || '';
+            const relatedSymptom = selectedOption.related_symptom?.S || '';
+
+            if (signal === 'ABNORMAL') {
+              abnormalCount++;
+              allSymptoms.push({
+                symptom: relatedSymptom || questionText,
+                date,
+                signal,
+              });
+            }
+          } else if (answerText === '예') {
+            // fallback: "예" 응답을 이상으로 간주
+            abnormalCount++;
+          }
+        });
+
+        if (totalCount > 0) {
+          const score = Math.round(((totalCount - abnormalCount) / totalCount) * 100);
+          trendData.push({ date, abnormalCount, totalCount, score });
+        }
+      });
+
+      // 최근 건강 점수 계산 (최근 7일 평균)
+      const recentScores = trendData.slice(0, 7).map(d => d.score);
+      const healthScore = recentScores.length > 0
+        ? Math.round(recentScores.reduce((a, b) => a + b, 0) / recentScores.length)
+        : null;
+
+      // 최근 이상 증상 (중복 제거, 최근 5개)
+      const uniqueSymptoms = [...new Map(allSymptoms.map(s => [s.symptom, s])).values()];
+      const recentSymptoms = uniqueSymptoms.slice(0, 5).map(s => s.symptom);
+
+      return {
+        trendData: trendData.reverse(), // 오래된 순으로 정렬 (그래프용)
+        healthScore,
+        recentSymptoms,
+        totalDiagnoses: items.length,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch health trend from DynamoDB: ${error}`);
+      return { trendData: [], healthScore: null, recentSymptoms: [] };
+    }
+  }
 }

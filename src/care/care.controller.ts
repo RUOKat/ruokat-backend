@@ -93,6 +93,22 @@ export class CareController {
   async getDailyReports(@Param('petId') petId: string) {
     return this.careService.getDailyReports(petId);
   }
+
+  // 건강 컨텍스트 조회 (UpdatedContextTable - 위험도, 태그, 요약)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/health-context')
+  async getHealthContext(@Param('petId') petId: string) {
+    return this.careService.getHealthContext(petId);
+  }
+
+  // 건강 트렌드 조회 (DiagnosticTable - 진단 답변 기반 이상 증상 추이)
+  @ApiBearerAuth('access-token')
+  @UseGuards(CognitoAuthGuard)
+  @Get(':petId/health-trend')
+  async getHealthTrend(@Param('petId') petId: string) {
+    return this.careService.getHealthTrend(petId);
+  }
 }
 
 // Admin 전용 컨트롤러 (인증 없음)

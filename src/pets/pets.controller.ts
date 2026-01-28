@@ -89,6 +89,22 @@ export class PetsController {
     }
     return this.petsService.softDelete(exUser.id, id);
   }
+
+  @Get(':id/petcam-images')
+  @ApiOperation({
+    summary: '펫캠 이미지 목록 조회',
+    description: 'S3 버킷에서 해당 고양이의 펫캠 이미지를 최신순으로 조회합니다.'
+  })
+  async getPetcamImages(
+    @CurrentUser() user: RequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    const exUser = await this.authService.getUserBySub(user.sub);
+    if (!exUser) {
+      throw new NotFoundException('User not found');
+    }
+    return this.petsService.getPetcamImages(id);
+  }
 }
 
 // Admin 전용 컨트롤러 (인증 없음)

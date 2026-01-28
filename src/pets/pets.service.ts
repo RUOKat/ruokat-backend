@@ -2,22 +2,33 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DynamoDBService } from '../aws/dynamodb.service';
+import { S3Service } from '../aws/s3.service';
 import { marshall } from '@aws-sdk/util-dynamodb';
 import {
   CreateCatProfileDto,
   UpdateCatProfileDto,
 } from './dto/cat-profile.dto';
 
+export interface PetcamImage {
+  key: string;
+  url: string;
+  lastModified: Date;
+  size: number;
+}
+
 @Injectable()
 export class PetsService {
   private readonly histTableName: string;
+  private readonly petcamBucketName: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly dynamoDBService: DynamoDBService,
+    private readonly s3Service: S3Service,
   ) {
     this.histTableName = this.configService.getOrThrow<string>('AWS_DYNAMODB_HIST_TABLE_NAME');
+    this.petcamBucketName = this.configService.get<string>('AWS_PETCAM_BUCKET_NAME') || 'ruokat-image-bucket';
   }
 
   async create(userId: string, dto: CreateCatProfileDto) {
@@ -33,6 +44,7 @@ export class PetsService {
         careShareStartAt: dto.careShareStartAt,
         careShareEndAt: dto.careShareEndAt,
         birthDate: dto.birthDate,
+        familyDate: dto.familyDate,
         estimatedAge: dto.estimatedAge,
         unknownBirthday: dto.unknownBirthday,
         gender: dto.gender,
@@ -134,6 +146,7 @@ export class PetsService {
         careShareStartAt: dto.careShareStartAt,
         careShareEndAt: dto.careShareEndAt,
         birthDate: dto.birthDate,
+        familyDate: dto.familyDate,
         estimatedAge: dto.estimatedAge,
         unknownBirthday: dto.unknownBirthday,
         gender: dto.gender,
@@ -181,6 +194,79 @@ export class PetsService {
     });
 
     return { deleted: true };
+  }
+
+  async getPetcamImages(petId: string, limit: number = 50): Promise<PetcamImage[]> {
+    try {
+      // S3 us-east-1에서 해당 petId prefix로 이미지 목록 조회
+      const result = await this.s3Service.listObjectsUsEast1(
+        this.petcamBucketName,
+        `${petId}/`,
+        limit
+      );
+
+      if (!result.Contents || result.Contents.length === 0) {
+        // petId prefix가 없으면 전체 버킷에서 조회
+        const allResult = await this.s3Service.listObjectsUsEast1(
+          this.petcamBucketName,
+          undefined,
+          limit
+        );
+
+        if (!allResult.Contents || allResult.Contents.length === 0) {
+          return [];
+        }
+
+        // 최신순 정렬
+        const sortedContents = allResult.Contents
+          .filter(obj => obj.Key && obj.Key.match(/\.(jpg|jpeg|png|gif|webp)$/i))
+          .sort((a, b) => {
+            const dateA = a.LastModified?.getTime() || 0;
+            const dateB = b.LastModified?.getTime() || 0;
+            return dateB - dateA;
+          });
+
+        const keys = sortedContents.map(obj => obj.Key!);
+        const signedUrls = await this.s3Service.getSignedUrlsForObjectsUsEast1(
+          this.petcamBucketName,
+          keys,
+          3600
+        );
+
+        return signedUrls.map((item, index) => ({
+          key: item.key,
+          url: item.url,
+          lastModified: sortedContents[index].LastModified || new Date(),
+          size: sortedContents[index].Size || 0,
+        }));
+      }
+
+      // 최신순 정렬
+      const sortedContents = result.Contents
+        .filter(obj => obj.Key && obj.Key.match(/\.(jpg|jpeg|png|gif|webp)$/i))
+        .sort((a, b) => {
+          const dateA = a.LastModified?.getTime() || 0;
+          const dateB = b.LastModified?.getTime() || 0;
+          return dateB - dateA;
+        });
+
+      const keys = sortedContents.map(obj => obj.Key!);
+      const signedUrls = await this.s3Service.getSignedUrlsForObjectsUsEast1(
+        this.petcamBucketName,
+        keys,
+        3600
+      );
+
+      return signedUrls.map((item, index) => ({
+        key: item.key,
+        url: item.url,
+        lastModified: sortedContents[index].LastModified || new Date(),
+        size: sortedContents[index].Size || 0,
+      }));
+    } catch (error) {
+      console.error(`[S3 Error] Failed to get petcam images for ${petId}:`, error);
+      return [];
+    }
   }
 
   private async saveHistoryToDynamoDB(petId: string, data: any, eventType: string) {
