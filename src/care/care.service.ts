@@ -421,6 +421,10 @@ export class CareService {
       stool: number;
       urine: number;
       weight: number | null;
+      foodLabel: string;
+      waterLabel: string;
+      stoolLabel: string;
+      urineLabel: string;
     }[] = [];
 
     // 값을 숫자로 변환하는 헬퍼 함수
@@ -447,6 +451,51 @@ export class CareService {
       return 50;
     };
 
+    // 값을 한글 레이블로 변환하는 헬퍼 함수
+    const valueToLabel = (value: string | undefined, type: string): string => {
+      if (!value) return '기록 없음';
+
+      // 이미 한글이면 그대로 반환
+      if (value === '평소만큼' || value === '평소보다 적게' || value === '평소보다 많이' ||
+        value === '안 먹음' || value === '없음' || value === '설사' ||
+        value === '평소 수준' || value === '평소보다 적음' || value === '평소보다 많음' ||
+        value === '거의 안 마심') {
+        return value;
+      }
+
+      // 영문 value를 한글로 변환
+      if (type === 'food') {
+        if (value === 'none') return '안 먹음';
+        if (value === 'less') return '평소보다 적게';
+        if (value === 'normal') return '평소만큼';
+        if (value === 'more') return '평소보다 많이';
+      }
+
+      if (type === 'water') {
+        if (value === 'none') return '거의 안 마심';
+        if (value === 'less') return '평소보다 적음';
+        if (value === 'normal') return '평소 수준';
+        if (value === 'more') return '평소보다 많음';
+      }
+
+      if (type === 'stool') {
+        if (value === 'none') return '없음';
+        if (value === 'less') return '평소보다 적게';
+        if (value === 'normal') return '평소만큼';
+        if (value === 'more') return '평소보다 많이';
+        if (value === 'diarrhea') return '설사';
+      }
+
+      if (type === 'urine') {
+        if (value === 'none') return '없음';
+        if (value === 'less') return '평소보다 적게';
+        if (value === 'normal') return '평소만큼';
+        if (value === 'more') return '평소보다 많이';
+      }
+
+      return value; // 변환 실패 시 원본 반환
+    };
+
     logs.forEach((log) => {
       const answers = log.answers as Record<string, string> | null;
       const day = parseInt(log.date.split('-')[2], 10);
@@ -460,6 +509,10 @@ export class CareService {
         stool: valueToScore(answers?.['q4_poop'], 'stool'),
         urine: valueToScore(answers?.['q5_urine'], 'urine'),
         weight: null as number | null,
+        foodLabel: valueToLabel(answers?.['q1_food_intake'], 'food'),
+        waterLabel: valueToLabel(answers?.['q2_water_intake'], 'water'),
+        stoolLabel: valueToLabel(answers?.['q4_poop'], 'stool'),
+        urineLabel: valueToLabel(answers?.['q5_urine'], 'urine'),
       };
 
       if (answers?.['q3_weight']) {
