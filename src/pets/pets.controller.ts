@@ -160,9 +160,21 @@ export class AdminPetsController {
     return this.petsService.findAll();
   }
 
+  @Get('petcam-images')
+  @ApiOperation({ summary: '전체 펫캠 이미지 조회 (Admin)' })
+  async getAllPetcamImages() {
+    return this.petsService.getAllPetcamImages();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: '고양이 상세 조회 (Admin)' })
   async findOnePet(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.petsService.findOne(id);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: '고양이 삭제 (Admin)' })
+  async deletePet(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.petsService.adminSoftDelete(id);
   }
 }

@@ -207,6 +207,122 @@ export class PetsService {
     return { deleted: true };
   }
 
+  // Admin용: 고양이 삭제 (userId 검증 없이)
+  async adminSoftDelete(petId: string) {
+    const pet = await this.prisma.pet.findFirst({
+      where: { id: petId, deletedAt: null },
+    });
+    if (!pet) throw new NotFoundException('Pet not found');
+
+    await this.prisma.pet.update({
+      where: { id: petId },
+      data: { deletedAt: new Date() },
+    });
+
+    return { deleted: true };
+  }
+
+  // Admin용: 전체 펫캠 이미지 조회
+  async getAllPetcamImages(limit: number = 100): Promise<(PetcamImage & { petId: string; petName: string })[]> {
+    try {
+      // 1. 전체 고양이 목록 조회
+      const pets = await this.prisma.pet.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true },
+      });
+
+      const petMap = new Map(pets.map(p => [p.id, p.name]));
+
+      // 2. S3에서 전체 이미지 조회
+      const result = await this.s3Service.listObjectsUsEast1(
+        this.petcamBucketName,
+        undefined,
+        limit
+      );
+
+      if (!result.Contents || result.Contents.length === 0) {
+        return [];
+      }
+
+      // 최신순 정렬
+      const sortedContents = result.Contents
+        .filter(obj => obj.Key && obj.Key.match(/\.(jpg|jpeg|png|gif|webp)$/i))
+        .sort((a, b) => {
+          const dateA = a.LastModified?.getTime() || 0;
+          const dateB = b.LastModified?.getTime() || 0;
+          return dateB - dateA;
+        });
+
+      const keys = sortedContents.map(obj => obj.Key!);
+      const signedUrls = await this.s3Service.getSignedUrlsForObjectsUsEast1(
+        this.petcamBucketName,
+        keys,
+        3600
+      );
+
+      // 3. 각 이미지에 대해 FGS 결과 조회
+      const results: (PetcamImage & { petId: string; petName: string })[] = [];
+
+      for (let i = 0; i < signedUrls.length; i++) {
+        const item = signedUrls[i];
+        const fileName = item.key.split('/').pop() || item.key;
+
+        // 파일명에서 petId 추출
+        let petId = '';
+        if (item.key.startsWith('CAT#')) {
+          petId = item.key.split('/')[0].replace('CAT#', '');
+        } else {
+          const match = fileName.match(/^([a-f0-9-]{36})_/);
+          if (match) {
+            petId = match[1];
+          }
+        }
+
+        // FGS 결과 조회 (개별 쿼리)
+        let fgsScore: number | undefined;
+        let fgsExplanation: string | undefined;
+
+        if (petId) {
+          try {
+            const fgsItems = await this.dynamoDBService.query({
+              TableName: this.fgsResultTableName,
+              KeyConditionExpression: 'PK = :pk',
+              FilterExpression: 'imageKey = :imageKey',
+              ExpressionAttributeValues: {
+                ':pk': { S: `CAT#${petId}` },
+                ':imageKey': { S: fileName },
+              },
+              Limit: 1,
+            });
+
+            if (fgsItems && fgsItems.length > 0) {
+              fgsScore = parseInt(fgsItems[0].fgsScore?.N || fgsItems[0].fgsScore?.S || '0', 10);
+              fgsExplanation = fgsItems[0].explanation?.S || '';
+            }
+          } catch (fgsError) {
+            // FGS 조회 실패해도 이미지는 표시
+          }
+        }
+
+        results.push({
+          key: item.key,
+          url: item.url,
+          lastModified: sortedContents[i].LastModified || new Date(),
+          size: sortedContents[i].Size || 0,
+          fgsScore,
+          fgsExplanation,
+          petId,
+          petName: petMap.get(petId) || '알 수 없음',
+        });
+      }
+
+      return results;
+    } catch (error) {
+      console.error(`[S3 Error] Failed to get all petcam images:`, error);
+      return [];
+    }
+  }
+
   async getPetcamImages(petId: string, limit: number = 50): Promise<PetcamImage[]> {
     try {
       // 1. FGS 결과 조회 (실패해도 이미지는 보여줘야 함)

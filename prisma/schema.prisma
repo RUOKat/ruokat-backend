@@ -199,7 +199,8 @@ model Pet {
 model MedicalProvider {
   id        String  @id @default(uuid())
   userId    String?
-  type      String // "hospital", "clinic", "doctor" 등
+  // code      String  @unique // 기관/의사 고유 코드
+  type      String // "hospital", "clinic", "doctor", "organization", "individual" 등
   name      String // 기관명 또는 의사명
   address   String? // 주소
   phone     String? // 연락처
